@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getCurrentUserAccessProfile } from "@/lib/authz";
 import {
   addStaffMember,
   removeStaffMember,
@@ -14,6 +15,7 @@ function getStaffInput(formData: FormData): StaffInput {
     fullName: String(formData.get("fullName") ?? "").trim(),
     email: String(formData.get("email") ?? "").trim(),
     phone: String(formData.get("phone") ?? "").trim(),
+    profileImageUrl: String(formData.get("profileImageUrl") ?? "").trim(),
     department: String(formData.get("department") ?? "").trim(),
     role: String(formData.get("role") ?? "").trim(),
     status: String(formData.get("status") ?? "").trim(),
@@ -21,9 +23,21 @@ function getStaffInput(formData: FormData): StaffInput {
   };
 }
 
+async function assertCanManageStaff() {
+  const accessProfile = await getCurrentUserAccessProfile();
+
+  if (
+    !accessProfile?.isActive ||
+    (!accessProfile.roles.includes("admin") && !accessProfile.roles.includes("hr"))
+  ) {
+    throw new Error("Unauthorized");
+  }
+}
+
 export async function createStaffMember(formData: FormData) {
+  await assertCanManageStaff();
   await addStaffMember(getStaffInput(formData));
-  revalidatePath("/");
+  revalidatePath("/dashboard");
 }
 
 export async function updateStaffMember(formData: FormData) {
@@ -33,8 +47,9 @@ export async function updateStaffMember(formData: FormData) {
     throw new Error("Staff member ID is required.");
   }
 
+  await assertCanManageStaff();
   await updateStaffMemberById(id, getStaffInput(formData));
-  revalidatePath("/");
+  revalidatePath("/dashboard");
 }
 
 export async function deleteStaffMember(formData: FormData) {
@@ -44,6 +59,7 @@ export async function deleteStaffMember(formData: FormData) {
     throw new Error("Staff member ID is required.");
   }
 
+  await assertCanManageStaff();
   await removeStaffMember(id);
-  revalidatePath("/");
+  revalidatePath("/dashboard");
 }

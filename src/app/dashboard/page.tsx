@@ -1,17 +1,23 @@
-import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getSupabaseServerClient } from "@/lib/supabase-server";
+import { getCurrentUserAccessProfile } from "@/lib/authz";
 import { logout } from "../auth-actions";
 import {
   createStaffMember,
   deleteStaffMember,
   updateStaffMember,
 } from "../staff-actions";
+import { approveStaffRequest } from "../registration-actions";
+import { StaffForm } from "./staff-form";
 import { getStaffMembers } from "@/lib/staff-store";
+import { getStaffRegistrationRequests } from "@/lib/registration-store";
 
 type DashboardPageProps = {
   searchParams?: Promise<{
+    add?: string;
     edit?: string;
+    view?: string;
   }>;
 };
 
@@ -23,60 +29,105 @@ function formatDate(date: string) {
   }).format(new Date(date));
 }
 
-export default async function DashboardPage({ searchParams }: DashboardPageProps) {
-  const cookieStore = await cookies();
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
 
-  if (cookieStore.get("staff-session")?.value !== "authenticated") {
+function getStatusClasses(status: string) {
+  if (status === "Active") {
+    return "bg-emerald-50 text-emerald-800 ring-1 ring-inset ring-emerald-200";
+  }
+
+  if (status === "On Leave") {
+    return "bg-amber-50 text-amber-900 ring-1 ring-inset ring-amber-200";
+  }
+
+  return "bg-stone-100 text-stone-700 ring-1 ring-inset ring-stone-200";
+}
+
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+  const supabase = await getSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
     redirect("/");
+  }
+
+  const accessProfile = await getCurrentUserAccessProfile();
+
+  if (!accessProfile?.isActive) {
+    redirect("/?error=unauthorized");
+  }
+
+  const canManageStaff =
+    accessProfile.roles.includes("admin") || accessProfile.roles.includes("hr");
+
+  if (!canManageStaff) {
+    redirect("/?error=unauthorized");
   }
 
   const params = (await searchParams) ?? {};
   const staffMembers = await getStaffMembers();
+  const registrationRequests = await getStaffRegistrationRequests();
+  const isAddMode = params.add === "1";
   const staffToEdit = staffMembers.find((member) => member.id === params.edit) ?? null;
+  const staffToView = staffMembers.find((member) => member.id === params.view) ?? null;
+  const isFormOpen = isAddMode || Boolean(staffToEdit);
 
   const activeCount = staffMembers.filter((member) => member.status === "Active").length;
+  const onLeaveCount = staffMembers.filter((member) => member.status === "On Leave").length;
+  const inactiveCount = staffMembers.filter((member) => member.status === "Inactive").length;
   const departmentCount = new Set(staffMembers.map((member) => member.department)).size;
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(240,210,160,0.45),_transparent_32%),linear-gradient(180deg,_#fff8ef_0%,_#f6efe5_42%,_#ece3d4_100%)] px-4 py-8 text-stone-900 sm:px-6 lg:px-10">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(13,148,136,0.12),_transparent_22%),linear-gradient(180deg,_#f7faf8_0%,_#eef4f1_55%,_#e7eeea_100%)] px-4 py-6 text-stone-900 sm:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-        <section className="overflow-hidden rounded-[2rem] border border-white/65 bg-white/80 shadow-[0_24px_80px_rgba(80,57,27,0.12)] backdrop-blur">
-          <div className="flex flex-col gap-6 px-6 py-8 lg:flex-row lg:items-end lg:justify-between lg:px-10">
-            <div className="max-w-2xl space-y-4">
-              <span className="inline-flex w-fit rounded-full border border-amber-900/10 bg-amber-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-amber-950">
-                Staff Management System
-              </span>
-              <div className="space-y-3">
-                <h1 className="font-sans text-4xl font-semibold tracking-tight text-stone-950 sm:text-5xl">
-                  Manage employees, roles, and records in one place.
+        <section className="rounded-[1.75rem] border border-white/80 bg-white/80 shadow-[0_20px_70px_rgba(28,44,38,0.08)] backdrop-blur">
+          <div className="flex flex-col gap-6 px-5 py-5 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="inline-flex rounded-full bg-teal-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-white">
+                  Admin Workspace
+                </span>
+                <span className="inline-flex rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-medium text-stone-600">
+                  {accessProfile.roles.join(", ")}
+                </span>
+              </div>
+
+              <div>
+                <h1 className="text-3xl font-semibold tracking-tight text-stone-950 sm:text-4xl">
+                  Staff administration
                 </h1>
-                <p className="max-w-xl text-sm leading-7 text-stone-600 sm:text-base">
-                  This dashboard keeps your staff directory organized with a clean
-                  create, update, and delete workflow backed by local project storage.
+                <p className="mt-2 max-w-2xl text-sm leading-7 text-stone-600">
+                  Organized employee records, profile data, and staff actions in one cleaner
+                  back-office layout.
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 sm:min-w-[18rem]">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <article className="rounded-3xl border border-stone-200 bg-stone-950 px-5 py-4 text-stone-50">
-                  <p className="text-xs uppercase tracking-[0.25em] text-stone-400">Total Staff</p>
-                  <p className="mt-3 text-3xl font-semibold">{staffMembers.length}</p>
-                </article>
-                <article className="rounded-3xl border border-stone-200 bg-white px-5 py-4">
-                  <p className="text-xs uppercase tracking-[0.25em] text-stone-500">Active</p>
-                  <p className="mt-3 text-3xl font-semibold text-stone-950">{activeCount}</p>
-                </article>
-                <article className="rounded-3xl border border-stone-200 bg-white px-5 py-4">
-                  <p className="text-xs uppercase tracking-[0.25em] text-stone-500">Departments</p>
-                  <p className="mt-3 text-3xl font-semibold text-stone-950">{departmentCount}</p>
-                </article>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
+                <span className="font-medium text-stone-900">{accessProfile.fullName}</span>
+                {" "}
+                signed in
               </div>
-
-              <form action={logout} className="self-end">
+              <Link
+                href="/dashboard?add=1"
+                className="inline-flex items-center justify-center rounded-full bg-teal-700 px-5 py-3 text-sm font-semibold text-white hover:bg-teal-800"
+              >
+                Add Staff
+              </Link>
+              <form action={logout}>
                 <button
                   type="submit"
-                  className="rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
+                  className="inline-flex w-full items-center justify-center rounded-full border border-stone-300 bg-white px-5 py-3 text-sm font-medium text-stone-700 hover:border-stone-950 hover:text-stone-950 sm:w-auto"
                 >
                   Logout
                 </button>
@@ -85,222 +136,351 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           </div>
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-[1.1fr_1.6fr]">
-          <div className="rounded-[2rem] border border-white/70 bg-white/75 p-6 shadow-[0_24px_80px_rgba(80,57,27,0.10)] backdrop-blur">
-            <div className="mb-6 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-stone-500">
-                  {staffToEdit ? "Update Staff" : "Add Staff"}
-                </p>
-                <h2 className="mt-2 text-2xl font-semibold text-stone-950">
-                  {staffToEdit ? staffToEdit.fullName : "New team member"}
-                </h2>
-              </div>
-              {staffToEdit ? (
-                <Link
-                  href="/dashboard"
-                  className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-                >
-                  Cancel
-                </Link>
-              ) : null}
-            </div>
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <article className="rounded-[1.5rem] border border-white/80 bg-white/85 p-5 shadow-[0_18px_50px_rgba(28,44,38,0.06)]">
+            <p className="text-[11px] uppercase tracking-[0.25em] text-stone-500">Total Staff</p>
+            <p className="mt-3 text-3xl font-semibold text-stone-950">{staffMembers.length}</p>
+          </article>
+          <article className="rounded-[1.5rem] border border-white/80 bg-white/85 p-5 shadow-[0_18px_50px_rgba(28,44,38,0.06)]">
+            <p className="text-[11px] uppercase tracking-[0.25em] text-stone-500">Active</p>
+            <p className="mt-3 text-3xl font-semibold text-stone-950">{activeCount}</p>
+          </article>
+          <article className="rounded-[1.5rem] border border-white/80 bg-white/85 p-5 shadow-[0_18px_50px_rgba(28,44,38,0.06)]">
+            <p className="text-[11px] uppercase tracking-[0.25em] text-stone-500">On Leave</p>
+            <p className="mt-3 text-3xl font-semibold text-stone-950">{onLeaveCount}</p>
+          </article>
+          <article className="rounded-[1.5rem] border border-white/80 bg-white/85 p-5 shadow-[0_18px_50px_rgba(28,44,38,0.06)]">
+            <p className="text-[11px] uppercase tracking-[0.25em] text-stone-500">Departments</p>
+            <p className="mt-3 text-3xl font-semibold text-stone-950">{departmentCount}</p>
+          </article>
+        </section>
 
-            <form
-              action={staffToEdit ? updateStaffMember : createStaffMember}
-              className="space-y-4"
-            >
-              {staffToEdit ? <input type="hidden" name="id" value={staffToEdit.id} /> : null}
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-stone-700">Employee ID</span>
-                  <input
-                    name="employeeId"
-                    defaultValue={staffToEdit?.employeeId}
-                    required
-                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none transition focus:border-stone-950"
-                    placeholder="EMP-1001"
-                  />
-                </label>
-
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-stone-700">Status</span>
-                  <select
-                    name="status"
-                    defaultValue={staffToEdit?.status ?? "Active"}
-                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none transition focus:border-stone-950"
-                  >
-                    <option>Active</option>
-                    <option>On Leave</option>
-                    <option>Inactive</option>
-                  </select>
-                </label>
-
-                <label className="space-y-2 sm:col-span-2">
-                  <span className="text-sm font-medium text-stone-700">Full Name</span>
-                  <input
-                    name="fullName"
-                    defaultValue={staffToEdit?.fullName}
-                    required
-                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none transition focus:border-stone-950"
-                    placeholder="Juan Dela Cruz"
-                  />
-                </label>
-
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-stone-700">Email</span>
-                  <input
-                    type="email"
-                    name="email"
-                    defaultValue={staffToEdit?.email}
-                    required
-                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none transition focus:border-stone-950"
-                    placeholder="juan@company.com"
-                  />
-                </label>
-
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-stone-700">Phone</span>
-                  <input
-                    name="phone"
-                    defaultValue={staffToEdit?.phone}
-                    required
-                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none transition focus:border-stone-950"
-                    placeholder="+63 912 345 6789"
-                  />
-                </label>
-
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-stone-700">Department</span>
-                  <input
-                    name="department"
-                    defaultValue={staffToEdit?.department}
-                    required
-                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none transition focus:border-stone-950"
-                    placeholder="Human Resources"
-                  />
-                </label>
-
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-stone-700">Role</span>
-                  <input
-                    name="role"
-                    defaultValue={staffToEdit?.role}
-                    required
-                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none transition focus:border-stone-950"
-                    placeholder="HR Manager"
-                  />
-                </label>
-
-                <label className="space-y-2 sm:col-span-2">
-                  <span className="text-sm font-medium text-stone-700">Start Date</span>
-                  <input
-                    type="date"
-                    name="startDate"
-                    defaultValue={staffToEdit?.startDate}
-                    required
-                    className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none transition focus:border-stone-950"
-                  />
-                </label>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full rounded-2xl bg-stone-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-stone-800"
-              >
-                {staffToEdit ? "Save changes" : "Create staff member"}
-              </button>
-            </form>
+        <section className="rounded-[1.75rem] border border-white/80 bg-white/88 shadow-[0_24px_70px_rgba(28,44,38,0.08)]">
+          <div className="border-b border-stone-200 px-5 py-5 lg:px-7">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-stone-500">
+              Staff Registration Requests
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold text-stone-950">
+              Approval queue
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-stone-600">
+              Review new staff sign-up requests, approve them, and share the temporary password shown after approval.
+            </p>
           </div>
 
-          <div className="rounded-[2rem] border border-white/70 bg-white/75 p-6 shadow-[0_24px_80px_rgba(80,57,27,0.10)] backdrop-blur">
-            <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-stone-500">
-                  Staff Directory
-                </p>
-                <h2 className="mt-2 text-2xl font-semibold text-stone-950">
-                  Current team records
-                </h2>
+          <div className="px-5 py-5 lg:px-7">
+            {registrationRequests.length === 0 ? (
+              <div className="rounded-[1.5rem] border border-dashed border-stone-300 bg-stone-50 px-6 py-10 text-center text-stone-500">
+                No pending or approved registration requests yet.
               </div>
-              <p className="text-sm text-stone-500">
-                Full CRUD is available from this screen.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              {staffMembers.length === 0 ? (
-                <div className="rounded-3xl border border-dashed border-stone-300 bg-stone-50 px-6 py-12 text-center text-stone-500">
-                  No staff records yet. Add your first employee using the form.
-                </div>
-              ) : (
-                staffMembers.map((member) => (
+            ) : (
+              <div className="space-y-3">
+                {registrationRequests.map((request) => (
                   <article
-                    key={member.id}
-                    className="rounded-3xl border border-stone-200 bg-stone-50/80 p-5"
+                    key={request.id}
+                    className="rounded-[1.5rem] border border-stone-200 bg-white p-4 shadow-[0_8px_24px_rgba(25,39,34,0.04)]"
                   >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="space-y-4">
+                      <div>
                         <div className="flex flex-wrap items-center gap-3">
-                          <h3 className="text-xl font-semibold text-stone-950">
-                            {member.fullName}
-                          </h3>
-                          <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-950">
-                            {member.status}
+                          <h3 className="text-lg font-semibold text-stone-950">{request.fullName}</h3>
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                              request.status === "approved"
+                                ? "bg-emerald-50 text-emerald-800 ring-1 ring-inset ring-emerald-200"
+                                : "bg-amber-50 text-amber-900 ring-1 ring-inset ring-amber-200"
+                            }`}
+                          >
+                            {request.status}
                           </span>
                         </div>
-
-                        <div className="grid gap-3 text-sm text-stone-600 sm:grid-cols-2">
-                          <p>
-                            <span className="font-medium text-stone-900">Employee ID:</span>{" "}
-                            {member.employeeId}
-                          </p>
-                          <p>
-                            <span className="font-medium text-stone-900">Department:</span>{" "}
-                            {member.department}
-                          </p>
-                          <p>
-                            <span className="font-medium text-stone-900">Role:</span> {member.role}
-                          </p>
-                          <p>
-                            <span className="font-medium text-stone-900">Start Date:</span>{" "}
-                            {formatDate(member.startDate)}
-                          </p>
-                          <p>
-                            <span className="font-medium text-stone-900">Email:</span> {member.email}
-                          </p>
-                          <p>
-                            <span className="font-medium text-stone-900">Phone:</span> {member.phone}
-                          </p>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-stone-600">
+                          <span>{request.email}</span>
+                          <span>{request.phone}</span>
+                          <span>{request.role}</span>
+                          <span>{request.department}</span>
                         </div>
+                        <p className="mt-2 text-sm text-stone-500">
+                          Requested start date: {formatDate(request.startDate)}
+                        </p>
+                        {request.temporaryPassword ? (
+                          <p className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                            Temporary password for admin to share:{" "}
+                            <span className="font-semibold">{request.temporaryPassword}</span>
+                          </p>
+                        ) : null}
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        <Link
-                          href={`/dashboard?edit=${member.id}`}
-                          className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-stone-950 hover:text-stone-950"
-                        >
-                          Edit
-                        </Link>
-
-                        <form action={deleteStaffMember}>
-                          <input type="hidden" name="id" value={member.id} />
+                      {request.status === "pending" ? (
+                        <form action={approveStaffRequest}>
+                          <input type="hidden" name="id" value={request.id} />
                           <button
                             type="submit"
-                            className="rounded-full bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700"
+                            className="rounded-full bg-teal-700 px-5 py-3 text-sm font-semibold text-white hover:bg-teal-800"
                           >
-                            Delete
+                            Confirm Staff
                           </button>
                         </form>
-                      </div>
+                      ) : (
+                        <span className="rounded-full border border-stone-300 px-4 py-2 text-sm text-stone-600">
+                          Approved
+                        </span>
+                      )}
                     </div>
                   </article>
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </section>
+
+        <section>
+          <section className="rounded-[1.75rem] border border-white/80 bg-white/88 shadow-[0_24px_70px_rgba(28,44,38,0.08)]">
+            <div className="flex flex-col gap-4 border-b border-stone-200 px-5 py-5 sm:flex-row sm:items-center sm:justify-between lg:px-7">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-stone-500">
+                  Directory
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold text-stone-950">
+                  Staff records
+                </h2>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="rounded-full bg-stone-100 px-4 py-2 text-sm text-stone-600">
+                  {activeCount} active
+                </span>
+                <span className="rounded-full bg-stone-100 px-4 py-2 text-sm text-stone-600">
+                  {inactiveCount} inactive
+                </span>
+              </div>
+            </div>
+
+            <div className="px-5 py-5 lg:px-7">
+              {staffMembers.length === 0 ? (
+                <div className="rounded-[1.5rem] border border-dashed border-stone-300 bg-stone-50 px-6 py-14 text-center text-stone-500">
+                  No staff records yet. Use the Add Staff button to create the first profile.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {staffMembers.map((member) => (
+                    <article
+                      key={member.id}
+                      className="rounded-[1.5rem] border border-stone-200 bg-white p-4 shadow-[0_8px_24px_rgba(25,39,34,0.04)]"
+                    >
+                      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                        <div className="flex min-w-0 items-start gap-4">
+                          {member.profileImageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={member.profileImageUrl}
+                              alt={`${member.fullName} profile`}
+                              className="h-14 w-14 shrink-0 rounded-2xl object-cover ring-1 ring-stone-200"
+                            />
+                          ) : (
+                            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,_#134e4a,_#0f766e)] text-sm font-semibold text-white">
+                              {getInitials(member.fullName)}
+                            </div>
+                          )}
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-3">
+                              <h3 className="text-lg font-semibold text-stone-950">
+                                {member.fullName}
+                              </h3>
+                              <span
+                                className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClasses(member.status)}`}
+                              >
+                                {member.status}
+                              </span>
+                            </div>
+
+                            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-stone-500">
+                              <span>{member.role}</span>
+                              <span>{member.department}</span>
+                              <span>{member.employeeId}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex shrink-0 items-center gap-3 xl:self-start">
+                          <Link
+                            href={`/dashboard?view=${member.id}`}
+                            className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 hover:border-stone-950 hover:text-stone-950"
+                          >
+                            View Details
+                          </Link>
+                          <Link
+                            href={`/dashboard?edit=${member.id}`}
+                            className="rounded-full bg-stone-950 px-4 py-2 text-sm font-medium text-white hover:bg-stone-800"
+                          >
+                            Edit
+                          </Link>
+                          <form action={deleteStaffMember}>
+                            <input type="hidden" name="id" value={member.id} />
+                            <button
+                              type="submit"
+                              className="rounded-full bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                            >
+                              Delete
+                            </button>
+                          </form>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        </section>
+
+        {staffToView ? (
+          <div className="fixed inset-0 z-50 flex items-start justify-center bg-stone-950/45 px-4 py-6 backdrop-blur-sm sm:px-6">
+            <div className="max-h-[calc(100vh-3rem)] w-full max-w-2xl overflow-y-auto rounded-[1.75rem] border border-white/70 bg-white shadow-[0_30px_100px_rgba(15,23,42,0.30)]">
+              <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-stone-200 bg-white/95 px-5 py-5 backdrop-blur">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-stone-500">
+                    View Details
+                  </p>
+                  <h2 className="mt-2 text-2xl font-semibold text-stone-950">
+                    {staffToView.fullName}
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-stone-600">
+                    Review the selected employee information here.
+                  </p>
+                </div>
+                <Link
+                  href="/dashboard"
+                  className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 hover:border-stone-950 hover:text-stone-950"
+                >
+                  Close
+                </Link>
+              </div>
+
+              <div className="space-y-5 px-5 py-5">
+                <div className="rounded-[1.5rem] border border-stone-200 bg-stone-50 p-4">
+                  <div className="flex items-center gap-4">
+                    {staffToView.profileImageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={staffToView.profileImageUrl}
+                        alt={`${staffToView.fullName} profile`}
+                        className="h-[4.5rem] w-[4.5rem] rounded-2xl object-cover ring-1 ring-stone-200"
+                      />
+                    ) : (
+                      <div className="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-2xl bg-[linear-gradient(135deg,_#134e4a,_#0f766e)] text-lg font-semibold text-white">
+                        {getInitials(staffToView.fullName)}
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-lg font-semibold text-stone-950">{staffToView.fullName}</p>
+                      <p className="mt-1 text-sm text-stone-500">
+                        {staffToView.role} | {staffToView.department}
+                      </p>
+                      <span
+                        className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClasses(staffToView.status)}`}
+                      >
+                        {staffToView.status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4 rounded-[1.5rem] border border-stone-200 bg-white p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-stone-500">
+                    Contact
+                  </p>
+                  <div className="space-y-3 text-sm text-stone-600">
+                    <p>
+                      <span className="font-medium text-stone-900">Email:</span> {staffToView.email}
+                    </p>
+                    <p>
+                      <span className="font-medium text-stone-900">Phone:</span> {staffToView.phone}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4 rounded-[1.5rem] border border-stone-200 bg-white p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-stone-500">
+                    Employment
+                  </p>
+                  <div className="space-y-3 text-sm text-stone-600">
+                    <p>
+                      <span className="font-medium text-stone-900">Employee ID:</span>{" "}
+                      {staffToView.employeeId}
+                    </p>
+                    <p>
+                      <span className="font-medium text-stone-900">Department:</span>{" "}
+                      {staffToView.department}
+                    </p>
+                    <p>
+                      <span className="font-medium text-stone-900">Role:</span> {staffToView.role}
+                    </p>
+                    <p>
+                      <span className="font-medium text-stone-900">Start Date:</span>{" "}
+                      {formatDate(staffToView.startDate)}
+                    </p>
+                    <p>
+                      <span className="font-medium text-stone-900">Profile Photo:</span>{" "}
+                      {staffToView.profileImageUrl ? "Attached" : "Not set"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <Link
+                    href={`/dashboard?edit=${staffToView.id}`}
+                    className="flex-1 rounded-full bg-stone-950 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-stone-800"
+                  >
+                    Edit Details
+                  </Link>
+                  <Link
+                    href="/dashboard"
+                    className="rounded-full border border-stone-300 px-4 py-3 text-sm font-medium text-stone-700 hover:border-stone-950 hover:text-stone-950"
+                  >
+                    Back
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {isFormOpen ? (
+          <div className="fixed inset-0 z-50 flex items-start justify-center bg-stone-950/45 px-4 py-6 backdrop-blur-sm sm:px-6">
+            <div className="max-h-[calc(100vh-3rem)] w-full max-w-2xl overflow-y-auto rounded-[1.75rem] border border-white/70 bg-white shadow-[0_30px_100px_rgba(15,23,42,0.30)]">
+              <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-stone-200 bg-white/95 px-5 py-5 backdrop-blur">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-stone-500">
+                    {staffToEdit ? "Edit Staff" : "Add Staff"}
+                  </p>
+                  <h2 className="mt-2 text-2xl font-semibold text-stone-950">
+                    {staffToEdit ? `Edit ${staffToEdit.fullName}` : "Create a new staff profile"}
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-stone-600">
+                    {staffToEdit
+                      ? "Update employee details in a focused modal."
+                      : "Add a new employee without leaving the directory view."}
+                  </p>
+                </div>
+                <Link
+                  href={staffToView ? `/dashboard?view=${staffToView.id}` : "/dashboard"}
+                  className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 hover:border-stone-950 hover:text-stone-950"
+                >
+                  Close
+                </Link>
+              </div>
+
+              <div className="px-5 py-5">
+                <StaffForm
+                  action={staffToEdit ? updateStaffMember : createStaffMember}
+                  staffToEdit={staffToEdit}
+                />
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </main>
   );
