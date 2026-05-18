@@ -8,13 +8,9 @@ export default async function PortalPage() {
     redirect("/?error=unauthorized");
   }
 
-  if (accessProfile.roles.includes("admin") || accessProfile.roles.includes("hr")) {
+  if (accessProfile.roles.includes("admin")) {
     redirect("/dashboard");
   }
 
-  if (accessProfile.roles.includes("staff")) {
-    redirect("/staff");
-  }
-
-  redirect("/?error=unauthorized");
+  redirect("/staff");
 }

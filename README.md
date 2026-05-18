@@ -1,36 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Fitz Task Manager
 
-## Getting Started
+A responsive task management web application built with Next.js App Router and Supabase.
 
-First, run the development server:
+## Implemented Features
+
+- Login and account creation with Supabase Auth
+- Role-based routing for admin and staff users
+- Admin dashboard for assigning, editing, deleting, and tracking staff tasks
+- Staff dashboard for viewing assigned tasks and updating status
+- Task priority and due-date tracking
+- Responsive board layout for desktop and mobile
+- Assigned task records protected by Supabase RLS
+
+## Tech Stack
+
+- Next.js 16
+- React 19
+- Tailwind CSS 4
+- Supabase Auth and Database
+- Server Actions for mutations
+
+## Database Setup
+
+Run `supabase/schema.sql` in Supabase before testing the task workflow. The schema adds the `public.tasks` table, assignment metadata, indexes, update trigger, and row-level security policies.
+
+New public signups are created as staff accounts. Use `supabase/seed-admin-hr.sql` after creating an admin auth user to assign the admin role.
+
+## Local Development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`, create a staff account or sign in, then use `/portal` to route to the correct dashboard:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Admin: `/dashboard`
+- Staff: `/staff`
