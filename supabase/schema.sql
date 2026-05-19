@@ -23,9 +23,79 @@ create table if not exists public.app_user_profiles (
   user_id uuid primary key references auth.users (id) on delete cascade,
   email text not null unique,
   full_name text not null,
+  first_name text,
+  middle_name text,
+  last_name text,
+  gender text,
+  age integer,
+  phone text,
+  address_line1 text,
+  address_line2 text,
+  city text,
+  state_province text,
+  postal_code text,
+  country text,
+  department text,
+  job_title text,
+  start_date date,
+  profile_image_url text,
   is_active boolean not null default true,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint app_user_profiles_age_check check (age is null or (age between 1 and 130))
 );
+
+alter table public.app_user_profiles
+add column if not exists first_name text,
+add column if not exists middle_name text,
+add column if not exists last_name text,
+add column if not exists gender text,
+add column if not exists age integer,
+add column if not exists phone text,
+add column if not exists address_line1 text,
+add column if not exists address_line2 text,
+add column if not exists city text,
+add column if not exists state_province text,
+add column if not exists postal_code text,
+add column if not exists country text,
+add column if not exists department text,
+add column if not exists job_title text,
+add column if not exists start_date date,
+add column if not exists profile_image_url text;
+
+insert into storage.buckets (
+  id,
+  name,
+  public,
+  file_size_limit,
+  allowed_mime_types
+)
+values (
+  'staff-profile-images',
+  'staff-profile-images',
+  true,
+  5242880,
+  array['image/jpeg', 'image/png', 'image/webp']
+)
+on conflict (id) do update
+set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'app_user_profiles_age_check'
+      and conrelid = 'public.app_user_profiles'::regclass
+  ) then
+    alter table public.app_user_profiles
+    add constraint app_user_profiles_age_check
+    check (age is null or (age between 1 and 130));
+  end if;
+end;
+$$;
 
 create table if not exists public.user_role_assignments (
   user_id uuid not null references public.app_user_profiles (user_id) on delete cascade,
@@ -112,16 +182,77 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.app_user_profiles (user_id, email, full_name)
+  insert into public.app_user_profiles (
+    user_id,
+    email,
+    full_name,
+    first_name,
+    middle_name,
+    last_name,
+    gender,
+    age,
+    phone,
+    address_line1,
+    address_line2,
+    city,
+    state_province,
+    postal_code,
+    country,
+    department,
+    job_title,
+    start_date,
+    profile_image_url
+  )
   values (
     new.id,
     lower(new.email),
-    coalesce(new.raw_user_meta_data ->> 'full_name', split_part(new.email, '@', 1))
+    coalesce(new.raw_user_meta_data ->> 'full_name', split_part(new.email, '@', 1)),
+    nullif(new.raw_user_meta_data ->> 'first_name', ''),
+    nullif(new.raw_user_meta_data ->> 'middle_name', ''),
+    nullif(new.raw_user_meta_data ->> 'last_name', ''),
+    nullif(new.raw_user_meta_data ->> 'gender', ''),
+    case
+      when new.raw_user_meta_data ->> 'age' ~ '^[0-9]+$'
+        and (new.raw_user_meta_data ->> 'age')::integer between 1 and 130
+      then (new.raw_user_meta_data ->> 'age')::integer
+      else null
+    end,
+    nullif(new.raw_user_meta_data ->> 'phone', ''),
+    nullif(new.raw_user_meta_data ->> 'address_line1', ''),
+    nullif(new.raw_user_meta_data ->> 'address_line2', ''),
+    nullif(new.raw_user_meta_data ->> 'city', ''),
+    nullif(new.raw_user_meta_data ->> 'state_province', ''),
+    nullif(new.raw_user_meta_data ->> 'postal_code', ''),
+    nullif(new.raw_user_meta_data ->> 'country', ''),
+    nullif(new.raw_user_meta_data ->> 'department', ''),
+    nullif(new.raw_user_meta_data ->> 'job_title', ''),
+    case
+      when new.raw_user_meta_data ->> 'start_date' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+      then (new.raw_user_meta_data ->> 'start_date')::date
+      else null
+    end,
+    nullif(new.raw_user_meta_data ->> 'profile_image_url', '')
   )
   on conflict (user_id) do update
   set
     email = excluded.email,
-    full_name = excluded.full_name;
+    full_name = excluded.full_name,
+    first_name = excluded.first_name,
+    middle_name = excluded.middle_name,
+    last_name = excluded.last_name,
+    gender = excluded.gender,
+    age = excluded.age,
+    phone = excluded.phone,
+    address_line1 = excluded.address_line1,
+    address_line2 = excluded.address_line2,
+    city = excluded.city,
+    state_province = excluded.state_province,
+    postal_code = excluded.postal_code,
+    country = excluded.country,
+    department = excluded.department,
+    job_title = excluded.job_title,
+    start_date = excluded.start_date,
+    profile_image_url = excluded.profile_image_url;
 
   return new;
 end;

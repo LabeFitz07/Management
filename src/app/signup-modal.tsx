@@ -1,0 +1,443 @@
+"use client";
+
+import { useEffect, useId, useState } from "react";
+
+type SignUpAction = (formData: FormData) => void | Promise<void>;
+
+type SignupModalProps = {
+  action: SignUpAction;
+  signupState?: string;
+};
+
+const inputClassName =
+  "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100";
+
+const signupMessages: Record<string, { tone: string; text: string }> = {
+  invalid: {
+    tone: "border-amber-200 bg-amber-50 text-amber-900",
+    text: "Complete the required fields, use a valid email, and enter a password with at least 6 characters.",
+  },
+  mismatch: {
+    tone: "border-amber-200 bg-amber-50 text-amber-900",
+    text: "Password and confirmation must match.",
+  },
+  photo: {
+    tone: "border-amber-200 bg-amber-50 text-amber-900",
+    text: "Upload a JPG, PNG, or WebP profile picture under 5 MB.",
+  },
+  "photo-upload": {
+    tone: "border-red-200 bg-red-50 text-red-700",
+    text: "The account was created, but the profile picture could not be uploaded. Try a smaller image or ask the admin to check storage setup.",
+  },
+  error: {
+    tone: "border-red-200 bg-red-50 text-red-700",
+    text: "Account creation failed. Please try again.",
+  },
+  exists: {
+    tone: "border-amber-200 bg-amber-50 text-amber-900",
+    text: "This email already has an account. Sign in with that email instead.",
+  },
+  "rate-limit": {
+    tone: "border-amber-200 bg-amber-50 text-amber-900",
+    text: "Signup is temporarily rate limited. Try again in a few minutes.",
+  },
+  created: {
+    tone: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    text: "Account created. Sign in with the email and password you just used.",
+  },
+  setup: {
+    tone: "border-amber-200 bg-amber-50 text-amber-900",
+    text: "Account created, but profile setup is not ready. Ask the admin to finish the database setup.",
+  },
+  "check-email": {
+    tone: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    text: "Check your email to confirm the account, then sign in.",
+  },
+};
+
+function SignupMessage({
+  className = "",
+  signupState,
+}: {
+  className?: string;
+  signupState?: string;
+}) {
+  if (!signupState || !signupMessages[signupState]) {
+    return null;
+  }
+
+  const message = signupMessages[signupState];
+
+  return (
+    <p className={`rounded-xl border px-4 py-3 text-sm ${message.tone} ${className}`}>
+      {message.text}
+    </p>
+  );
+}
+
+function Field({
+  children,
+  label,
+}: {
+  children: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <label className="block space-y-2">
+      <span className="text-sm font-medium text-slate-700">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+export function SignupModal({ action, signupState }: SignupModalProps) {
+  const [isOpen, setIsOpen] = useState(Boolean(signupState));
+  const [profileImagePreview, setProfileImagePreview] = useState("");
+  const titleId = useId();
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    }
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (profileImagePreview) {
+        URL.revokeObjectURL(profileImagePreview);
+      }
+    };
+  }, [profileImagePreview]);
+
+  function handleProfileImageChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    setProfileImagePreview(file ? URL.createObjectURL(file) : "");
+  }
+
+  return (
+    <>
+      <div className="rounded-3xl border border-white/80 bg-white/90 p-6 shadow-[0_20px_70px_rgba(15,23,42,0.10)] backdrop-blur sm:p-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+          Staff Access
+        </p>
+        <h2 className="mt-2 text-3xl font-semibold tracking-tight">Need an account?</h2>
+        <p className="mt-3 text-sm leading-6 text-slate-600">
+          Create a staff profile so an admin can assign tasks to your workspace.
+        </p>
+        <SignupMessage className="mt-4" signupState={signupState} />
+        <button
+          type="button"
+          onClick={() => setIsOpen(true)}
+          className="mt-6 min-h-12 w-full rounded-2xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-800"
+        >
+          Sign up
+        </button>
+      </div>
+
+      {isOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 px-4 py-0 backdrop-blur-sm sm:items-start sm:px-6 sm:py-5"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+        >
+          <button
+            type="button"
+            aria-label="Close signup form"
+            className="absolute inset-0 h-full w-full cursor-default"
+            onClick={() => setIsOpen(false)}
+          />
+          <div className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-t-3xl border border-white/70 bg-white shadow-[0_30px_100px_rgba(15,23,42,0.30)] sm:max-h-[calc(100vh-2.5rem)] sm:rounded-3xl">
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white/95 px-6 py-5 backdrop-blur">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  Sign up
+                </p>
+                <h2 id={titleId} className="mt-2 text-2xl font-semibold text-slate-950">
+                  Staff account details
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="rounded-2xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:border-slate-950 hover:text-slate-950"
+              >
+                Close
+              </button>
+            </div>
+
+            <form action={action} className="space-y-6 px-6 py-6">
+              <SignupMessage signupState={signupState} />
+
+              <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center">
+                <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-500">
+                  {profileImagePreview ? (
+                    // Blob previews cannot use next/image because they are browser-created object URLs.
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={profileImagePreview}
+                      alt="Profile preview"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    "Photo"
+                  )}
+                </div>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <span className="text-sm font-medium text-slate-700">Profile Picture</span>
+                  <input
+                    type="file"
+                    name="profileImage"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleProfileImageChange}
+                    className="block w-full cursor-pointer rounded-2xl border border-slate-200 bg-white text-sm text-slate-700 file:mr-4 file:border-0 file:bg-slate-950 file:px-4 file:py-3 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-800"
+                  />
+                  <p className="text-xs leading-5 text-slate-500">
+                    JPG, PNG, or WebP up to 5 MB.
+                  </p>
+                </div>
+              </section>
+
+              <section className="grid gap-4 md:grid-cols-3">
+                <Field label="First Name">
+                  <input
+                    name="firstName"
+                    autoComplete="given-name"
+                    required
+                    className={inputClassName}
+                    placeholder="First name"
+                  />
+                </Field>
+
+                <Field label="Middle Name">
+                  <input
+                    name="middleName"
+                    autoComplete="additional-name"
+                    className={inputClassName}
+                    placeholder="Middle name"
+                  />
+                </Field>
+
+                <Field label="Last Name">
+                  <input
+                    name="lastName"
+                    autoComplete="family-name"
+                    required
+                    className={inputClassName}
+                    placeholder="Last name"
+                  />
+                </Field>
+              </section>
+
+              <section className="grid gap-4 md:grid-cols-3">
+                <Field label="Gender">
+                  <select
+                    name="gender"
+                    required
+                    className={inputClassName}
+                    defaultValue=""
+                  >
+                    <option value="" disabled>
+                      Select gender
+                    </option>
+                    <option value="Female">Female</option>
+                    <option value="Male">Male</option>
+                    <option value="Non-binary">Non-binary</option>
+                    <option value="Prefer not to say">Prefer not to say</option>
+                  </select>
+                </Field>
+
+                <Field label="Age">
+                  <input
+                    type="number"
+                    name="age"
+                    min={1}
+                    max={130}
+                    inputMode="numeric"
+                    required
+                    className={inputClassName}
+                    placeholder="Age"
+                  />
+                </Field>
+
+                <Field label="Phone">
+                  <input
+                    type="tel"
+                    name="phone"
+                    autoComplete="tel"
+                    required
+                    className={inputClassName}
+                    placeholder="Phone number"
+                  />
+                </Field>
+              </section>
+
+              <section className="grid gap-4 md:grid-cols-2">
+                <Field label="Email">
+                  <input
+                    type="email"
+                    name="email"
+                    autoComplete="email"
+                    required
+                    className={inputClassName}
+                    placeholder="you@example.com"
+                  />
+                </Field>
+
+                <Field label="Department">
+                  <input
+                    name="department"
+                    autoComplete="organization"
+                    required
+                    className={inputClassName}
+                    placeholder="Operations"
+                  />
+                </Field>
+              </section>
+
+              <section className="grid gap-4 md:grid-cols-2">
+                <Field label="Job Title">
+                  <input
+                    name="jobTitle"
+                    autoComplete="organization-title"
+                    required
+                    className={inputClassName}
+                    placeholder="Task Coordinator"
+                  />
+                </Field>
+
+                <Field label="Start Date">
+                  <input
+                    type="date"
+                    name="startDate"
+                    required
+                    className={inputClassName}
+                  />
+                </Field>
+              </section>
+
+              <section className="grid gap-4 md:grid-cols-2">
+                <Field label="Password">
+                  <input
+                    type="password"
+                    name="password"
+                    autoComplete="new-password"
+                    minLength={6}
+                    required
+                    className={inputClassName}
+                    placeholder="At least 6 characters"
+                  />
+                </Field>
+
+                <Field label="Confirm Password">
+                  <input
+                    type="password"
+                    name="confirmPassword"
+                    autoComplete="new-password"
+                    minLength={6}
+                    required
+                    className={inputClassName}
+                    placeholder="Re-enter password"
+                  />
+                </Field>
+              </section>
+
+              <section className="grid gap-4">
+                <Field label="Street Address">
+                  <input
+                    name="addressLine1"
+                    autoComplete="address-line1"
+                    required
+                    className={inputClassName}
+                    placeholder="Street address"
+                  />
+                </Field>
+
+                <Field label="Address Line 2">
+                  <input
+                    name="addressLine2"
+                    autoComplete="address-line2"
+                    className={inputClassName}
+                    placeholder="Apartment, suite, unit"
+                  />
+                </Field>
+              </section>
+
+              <section className="grid gap-4 md:grid-cols-4">
+                <Field label="City">
+                  <input
+                    name="city"
+                    autoComplete="address-level2"
+                    required
+                    className={inputClassName}
+                    placeholder="City"
+                  />
+                </Field>
+
+                <Field label="State / Province">
+                  <input
+                    name="stateProvince"
+                    autoComplete="address-level1"
+                    required
+                    className={inputClassName}
+                    placeholder="State"
+                  />
+                </Field>
+
+                <Field label="Postal Code">
+                  <input
+                    name="postalCode"
+                    autoComplete="postal-code"
+                    required
+                    className={inputClassName}
+                    placeholder="Postal code"
+                  />
+                </Field>
+
+                <Field label="Country">
+                  <input
+                    name="country"
+                    autoComplete="country-name"
+                    required
+                    className={inputClassName}
+                    placeholder="Country"
+                  />
+                </Field>
+              </section>
+
+              <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="min-h-12 rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-medium text-slate-700 hover:border-slate-950 hover:text-slate-950"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="min-h-12 rounded-2xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-800"
+                >
+                  Create account
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}

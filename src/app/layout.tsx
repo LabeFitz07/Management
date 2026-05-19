@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Fitz Task Manager",
+  title: "Task Management System",
   description: "A responsive task management app with login, task CRUD, and status tracking.",
 };
 

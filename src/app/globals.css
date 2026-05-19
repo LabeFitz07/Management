@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4ecdf;
-  --foreground: #1f1a17;
+  --background: #f8fafc;
+  --foreground: #0f172a;
 }
 
 @theme inline {
@@ -24,11 +24,13 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: "Segoe UI", Arial, ui-sans-serif, system-ui, sans-serif;
+  text-rendering: optimizeLegibility;
 }
 
 a,
 button,
 input,
+textarea,
 select {
   transition:
     color 180ms ease,
@@ -40,4 +42,24 @@ select {
 
 button:active {
   transform: translateY(1px);
+}
+
+::selection {
+  background: #bfdbfe;
+  color: #0f172a;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
