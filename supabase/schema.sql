@@ -82,6 +82,44 @@ set
   file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
 
+insert into storage.buckets (
+  id,
+  name,
+  public,
+  file_size_limit,
+  allowed_mime_types
+)
+values (
+  'task-submission-files',
+  'task-submission-files',
+  false,
+  26214400,
+  array[
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.ms-works',
+    'application/zip',
+    'text/plain',
+    'text/csv',
+    'video/mp4',
+    'video/quicktime',
+    'video/webm'
+  ]
+)
+on conflict (id) do update
+set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
 do $$
 begin
   if not exists (
@@ -139,17 +177,100 @@ create table if not exists public.tasks (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
   created_by uuid references auth.users (id) on delete set null,
+  reviewer_user_id uuid references auth.users (id) on delete set null,
   title text not null,
   description text,
-  status text not null default 'todo' check (status in ('todo', 'in_progress', 'completed')),
+  status text not null default 'todo' check (status in ('todo', 'in_progress', 'submitted', 'changes_requested', 'approved')),
   priority text not null default 'medium' check (priority in ('low', 'medium', 'high')),
   due_date date,
+  submitted_at timestamptz,
+  approved_at timestamptz,
+  approved_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 alter table public.tasks
-add column if not exists created_by uuid references auth.users (id) on delete set null;
+add column if not exists created_by uuid references auth.users (id) on delete set null,
+add column if not exists reviewer_user_id uuid references auth.users (id) on delete set null,
+add column if not exists submitted_at timestamptz,
+add column if not exists approved_at timestamptz,
+add column if not exists approved_by uuid references auth.users (id) on delete set null;
+
+alter table public.tasks
+drop constraint if exists tasks_status_check;
+
+update public.tasks
+set reviewer_user_id = created_by
+where reviewer_user_id is null
+  and created_by is not null;
+
+update public.tasks
+set
+  status = 'approved',
+  submitted_at = coalesce(submitted_at, updated_at, created_at, now()),
+  approved_at = coalesce(approved_at, updated_at, created_at, now()),
+  approved_by = coalesce(approved_by, created_by)
+where status = 'completed';
+
+alter table public.tasks
+add constraint tasks_status_check
+check (status in ('todo', 'in_progress', 'submitted', 'changes_requested', 'approved'));
+
+create table if not exists public.task_submissions (
+  id uuid primary key default gen_random_uuid(),
+  task_id uuid not null references public.tasks (id) on delete cascade,
+  submitted_by uuid not null references auth.users (id) on delete cascade,
+  version integer not null default 1,
+  submission_note text not null,
+  review_status text not null default 'submitted' check (review_status in ('submitted', 'approved', 'changes_requested')),
+  review_note text,
+  reviewed_by uuid references auth.users (id) on delete set null,
+  submitted_at timestamptz not null default now(),
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint task_submissions_version_positive check (version > 0),
+  constraint task_submissions_task_version_unique unique (task_id, version)
+);
+
+create table if not exists public.task_submission_files (
+  id uuid primary key default gen_random_uuid(),
+  submission_id uuid not null references public.task_submissions (id) on delete cascade,
+  task_id uuid not null references public.tasks (id) on delete cascade,
+  uploaded_by uuid not null references auth.users (id) on delete cascade,
+  storage_bucket text not null,
+  storage_path text not null unique,
+  original_name text not null,
+  mime_type text not null,
+  size_bytes bigint not null check (size_bytes > 0),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.task_reference_files (
+  id uuid primary key default gen_random_uuid(),
+  task_id uuid not null references public.tasks (id) on delete cascade,
+  uploaded_by uuid not null references auth.users (id) on delete cascade,
+  storage_bucket text not null,
+  storage_path text not null unique,
+  original_name text not null,
+  mime_type text not null,
+  size_bytes bigint not null check (size_bytes > 0),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  recipient_user_id uuid not null references auth.users (id) on delete cascade,
+  actor_user_id uuid references auth.users (id) on delete set null,
+  task_id uuid references public.tasks (id) on delete cascade,
+  submission_id uuid references public.task_submissions (id) on delete cascade,
+  type text not null check (type in ('task_assigned', 'task_submitted', 'task_approved', 'task_changes_requested')),
+  title text not null,
+  body text,
+  is_read boolean not null default false,
+  created_at timestamptz not null default now()
+);
 
 create index if not exists tasks_user_status_idx
 on public.tasks (user_id, status);
@@ -159,6 +280,24 @@ on public.tasks (user_id, due_date);
 
 create index if not exists tasks_created_by_idx
 on public.tasks (created_by);
+
+create index if not exists tasks_reviewer_status_idx
+on public.tasks (reviewer_user_id, status);
+
+create index if not exists task_submissions_task_submitted_at_idx
+on public.task_submissions (task_id, submitted_at desc);
+
+create index if not exists task_submissions_review_status_idx
+on public.task_submissions (review_status, submitted_at desc);
+
+create index if not exists task_submission_files_task_idx
+on public.task_submission_files (task_id, created_at desc);
+
+create index if not exists task_reference_files_task_idx
+on public.task_reference_files (task_id, created_at desc);
+
+create index if not exists notifications_recipient_read_idx
+on public.notifications (recipient_user_id, is_read, created_at desc);
 
 create or replace function public.set_updated_at()
 returns trigger
@@ -173,6 +312,11 @@ $$;
 drop trigger if exists set_tasks_updated_at on public.tasks;
 create trigger set_tasks_updated_at
 before update on public.tasks
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_task_submissions_updated_at on public.task_submissions;
+create trigger set_task_submissions_updated_at
+before update on public.task_submissions
 for each row execute function public.set_updated_at();
 
 create or replace function public.handle_new_auth_user()
@@ -324,6 +468,45 @@ as $$
   );
 $$;
 
+create or replace function public.can_access_task(target_task_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.tasks t
+    where t.id = target_task_id
+      and (
+        public.has_app_role(array['admin', 'hr'])
+        or t.user_id = auth.uid()
+        or t.created_by = auth.uid()
+        or t.reviewer_user_id = auth.uid()
+      )
+  );
+$$;
+
+create or replace function public.can_review_task(target_task_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.tasks t
+    where t.id = target_task_id
+      and (
+        public.has_app_role(array['admin', 'hr'])
+        or t.created_by = auth.uid()
+        or t.reviewer_user_id = auth.uid()
+      )
+  );
+$$;
+
 alter table public.departments enable row level security;
 alter table public.job_roles enable row level security;
 alter table public.app_roles enable row level security;
@@ -332,6 +515,10 @@ alter table public.user_role_assignments enable row level security;
 alter table public.staff_members enable row level security;
 alter table public.staff_registration_requests enable row level security;
 alter table public.tasks enable row level security;
+alter table public.task_submissions enable row level security;
+alter table public.task_submission_files enable row level security;
+alter table public.task_reference_files enable row level security;
+alter table public.notifications enable row level security;
 
 drop policy if exists "Authorized users can view departments" on public.departments;
 create policy "Authorized users can view departments"
@@ -368,7 +555,7 @@ for select
 to authenticated
 using (
   user_id = auth.uid()
-  or public.has_app_role(array['admin'])
+  or public.has_app_role(array['admin', 'hr'])
 );
 
 drop policy if exists "Users can update their own profile" on public.app_user_profiles;
@@ -378,11 +565,11 @@ for update
 to authenticated
 using (
   user_id = auth.uid()
-  or public.has_app_role(array['admin'])
+  or public.has_app_role(array['admin', 'hr'])
 )
 with check (
   user_id = auth.uid()
-  or public.has_app_role(array['admin'])
+  or public.has_app_role(array['admin', 'hr'])
 );
 
 drop policy if exists "Users can view role assignments" on public.user_role_assignments;
@@ -392,7 +579,7 @@ for select
 to authenticated
 using (
   user_id = auth.uid()
-  or public.has_app_role(array['admin'])
+  or public.has_app_role(array['admin', 'hr'])
 );
 
 drop policy if exists "Users can view app roles" on public.app_roles;
@@ -471,8 +658,7 @@ on public.tasks
 for select
 to authenticated
 using (
-  public.has_app_role(array['admin'])
-  or user_id = auth.uid()
+  public.can_access_task(id)
 );
 
 drop policy if exists "Users can create their own tasks" on public.tasks;
@@ -482,7 +668,7 @@ on public.tasks
 for insert
 to authenticated
 with check (
-  public.has_app_role(array['admin'])
+  public.has_app_role(array['admin', 'hr'])
   and created_by = auth.uid()
 );
 
@@ -493,12 +679,10 @@ on public.tasks
 for update
 to authenticated
 using (
-  public.has_app_role(array['admin'])
-  or user_id = auth.uid()
+  public.can_access_task(id)
 )
 with check (
-  public.has_app_role(array['admin'])
-  or user_id = auth.uid()
+  public.can_access_task(id)
 );
 
 drop policy if exists "Users can delete their own tasks" on public.tasks;
@@ -507,7 +691,131 @@ create policy "Admins can delete tasks"
 on public.tasks
 for delete
 to authenticated
-using (public.has_app_role(array['admin']));
+using (
+  public.has_app_role(array['admin', 'hr'])
+  or created_by = auth.uid()
+);
+
+drop policy if exists "Task participants can view submissions" on public.task_submissions;
+create policy "Task participants can view submissions"
+on public.task_submissions
+for select
+to authenticated
+using (public.can_access_task(task_id));
+
+drop policy if exists "Assigned staff can submit work updates" on public.task_submissions;
+create policy "Assigned staff can submit work updates"
+on public.task_submissions
+for insert
+to authenticated
+with check (
+  submitted_by = auth.uid()
+  and exists (
+    select 1
+    from public.tasks t
+    where t.id = task_id
+      and t.user_id = auth.uid()
+  )
+);
+
+drop policy if exists "Task reviewers can update submissions" on public.task_submissions;
+create policy "Task reviewers can update submissions"
+on public.task_submissions
+for update
+to authenticated
+using (public.can_review_task(task_id))
+with check (public.can_review_task(task_id));
+
+drop policy if exists "Task reviewers can delete submissions" on public.task_submissions;
+create policy "Task reviewers can delete submissions"
+on public.task_submissions
+for delete
+to authenticated
+using (public.can_review_task(task_id));
+
+drop policy if exists "Task participants can view submission files" on public.task_submission_files;
+create policy "Task participants can view submission files"
+on public.task_submission_files
+for select
+to authenticated
+using (public.can_access_task(task_id));
+
+drop policy if exists "Assigned staff can add submission files" on public.task_submission_files;
+create policy "Assigned staff can add submission files"
+on public.task_submission_files
+for insert
+to authenticated
+with check (
+  uploaded_by = auth.uid()
+  and exists (
+    select 1
+    from public.task_submissions s
+    join public.tasks t on t.id = s.task_id
+    where s.id = submission_id
+      and s.task_id = task_id
+      and s.submitted_by = auth.uid()
+      and t.user_id = auth.uid()
+  )
+);
+
+drop policy if exists "Task reviewers can delete submission files" on public.task_submission_files;
+create policy "Task reviewers can delete submission files"
+on public.task_submission_files
+for delete
+to authenticated
+using (public.can_review_task(task_id));
+
+drop policy if exists "Task participants can view reference files" on public.task_reference_files;
+create policy "Task participants can view reference files"
+on public.task_reference_files
+for select
+to authenticated
+using (public.can_access_task(task_id));
+
+drop policy if exists "Task managers can add reference files" on public.task_reference_files;
+create policy "Task managers can add reference files"
+on public.task_reference_files
+for insert
+to authenticated
+with check (
+  uploaded_by = auth.uid()
+  and public.can_review_task(task_id)
+);
+
+drop policy if exists "Task managers can delete reference files" on public.task_reference_files;
+create policy "Task managers can delete reference files"
+on public.task_reference_files
+for delete
+to authenticated
+using (public.can_review_task(task_id));
+
+drop policy if exists "Users can view their own notifications" on public.notifications;
+create policy "Users can view their own notifications"
+on public.notifications
+for select
+to authenticated
+using (recipient_user_id = auth.uid());
+
+drop policy if exists "Users can update their own notifications" on public.notifications;
+create policy "Users can update their own notifications"
+on public.notifications
+for update
+to authenticated
+using (recipient_user_id = auth.uid())
+with check (recipient_user_id = auth.uid());
+
+drop policy if exists "Task participants can create notifications" on public.notifications;
+create policy "Task participants can create notifications"
+on public.notifications
+for insert
+to authenticated
+with check (
+  actor_user_id = auth.uid()
+  and (
+    task_id is null
+    or public.can_access_task(task_id)
+  )
+);
 
 insert into public.app_roles (code, name)
 values

@@ -47,7 +47,7 @@ const STATUS_MESSAGES: Record<string, { className: string; text: string }> = {
 };
 
 function getReturnHref(roles: string[]) {
-  return roles.includes("admin") ? "/dashboard" : "/staff";
+  return roles.includes("admin") || roles.includes("hr") ? "/dashboard" : "/staff";
 }
 
 function getRoleLabel(roles: string[]) {

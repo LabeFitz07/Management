@@ -1,21 +1,33 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
+  getCurrentAccountProfile,
   getStaffAccountSummaries,
   type StaffAccountSummary,
 } from "@/lib/account-store";
 import { getCurrentUserAccessProfile } from "@/lib/authz";
+import { getUnreadNotificationCount } from "@/lib/notification-store";
 import {
-  getAdminTasks,
+  getManagedTasks,
+  getTaskDetailById,
   getAssignableStaffUsers,
+  getTaskReviewerUsers,
   TASK_STATUSES,
-  type AssignableStaffUser,
   type Task,
-  type TaskPriority,
   type TaskStatus,
 } from "@/lib/task-store";
+import {
+  TASK_STATUS_META,
+  TASK_PRIORITY_META,
+  formatTaskDate,
+  formatTaskDateTime,
+  getTaskDueClass,
+  getTaskDueLabel,
+  isTaskDueToday,
+  isTaskOverdue,
+} from "@/lib/task-ui";
 import { logout } from "../auth-actions";
-import { createTask, deleteTask, updateTask, updateTaskStatus } from "../task-actions";
+import { createTask, deleteTask, updateTask } from "../task-actions";
 import { TaskForm } from "./task-form";
 
 type DashboardPageProps = {
@@ -23,51 +35,8 @@ type DashboardPageProps = {
     add?: string;
     edit?: string;
     status?: string;
+    upload?: string;
   }>;
-};
-
-const STATUS_META: Record<
-  TaskStatus,
-  {
-    label: string;
-    action: string;
-    columnClass: string;
-    badgeClass: string;
-  }
-> = {
-  todo: {
-    label: "To Do",
-    action: "Move to To Do",
-    columnClass: "border-slate-200 bg-slate-50",
-    badgeClass: "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200",
-  },
-  in_progress: {
-    label: "In Progress",
-    action: "Start Progress",
-    columnClass: "border-blue-200 bg-blue-50",
-    badgeClass: "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200",
-  },
-  completed: {
-    label: "Completed",
-    action: "Complete",
-    columnClass: "border-emerald-200 bg-emerald-50",
-    badgeClass: "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200",
-  },
-};
-
-const PRIORITY_META: Record<TaskPriority, { label: string; className: string }> = {
-  low: {
-    label: "Low",
-    className: "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200",
-  },
-  medium: {
-    label: "Medium",
-    className: "bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200",
-  },
-  high: {
-    label: "High",
-    className: "bg-red-50 text-red-700 ring-1 ring-inset ring-red-200",
-  },
 };
 
 const METRIC_TONE_CLASS = {
@@ -75,71 +44,11 @@ const METRIC_TONE_CLASS = {
   blue: "border-blue-200 bg-blue-50 text-blue-950",
   amber: "border-amber-200 bg-amber-50 text-amber-950",
   emerald: "border-emerald-200 bg-emerald-50 text-emerald-950",
-  red: "border-red-200 bg-red-50 text-red-950",
+  rose: "border-rose-200 bg-rose-50 text-rose-950",
 } as const;
 
 function isTaskStatus(value: string | undefined): value is TaskStatus {
   return Boolean(value && TASK_STATUSES.includes(value as TaskStatus));
-}
-
-function formatDate(date: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date(`${date}T00:00:00`));
-}
-
-function isOverdue(task: Task) {
-  if (!task.dueDate || task.status === "completed") {
-    return false;
-  }
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return new Date(`${task.dueDate}T00:00:00`) < today;
-}
-
-function isDueToday(task: Task) {
-  if (!task.dueDate || task.status === "completed") {
-    return false;
-  }
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return new Date(`${task.dueDate}T00:00:00`).getTime() === today.getTime();
-}
-
-function getDueLabel(task: Task) {
-  if (!task.dueDate) {
-    return "No due date";
-  }
-
-  if (isOverdue(task)) {
-    return `Overdue ${formatDate(task.dueDate)}`;
-  }
-
-  if (isDueToday(task)) {
-    return "Due today";
-  }
-
-  return `Due ${formatDate(task.dueDate)}`;
-}
-
-function getDueClass(task: Task) {
-  if (!task.dueDate) {
-    return "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200";
-  }
-
-  if (isOverdue(task)) {
-    return "bg-red-50 text-red-700 ring-1 ring-inset ring-red-200";
-  }
-
-  if (isDueToday(task)) {
-    return "bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200";
-  }
-
-  return "bg-cyan-50 text-cyan-800 ring-1 ring-inset ring-cyan-200";
 }
 
 function getInitials(fullName: string) {
@@ -150,7 +59,7 @@ function getInitials(fullName: string) {
     .map((name) => name[0]?.toUpperCase())
     .join("");
 
-  return initials || "ST";
+  return initials || "TM";
 }
 
 function formatOptionalDate(date: string) {
@@ -158,7 +67,11 @@ function formatOptionalDate(date: string) {
     return "Not set";
   }
 
-  return formatDate(date);
+  return formatTaskDate(date);
+}
+
+function getManagerRoleLabel(roles: string[]) {
+  return roles.includes("admin") ? "Admin" : "HR";
 }
 
 function MetricCard({
@@ -187,23 +100,41 @@ function MetricCard({
   );
 }
 
+function ProfileAvatar({
+  fullName,
+  profileImageUrl,
+  className,
+  fallbackClassName = "text-sm",
+}: {
+  fullName: string;
+  profileImageUrl: string;
+  className: string;
+  fallbackClassName?: string;
+}) {
+  return (
+    <div
+      className={`${className} flex shrink-0 items-center justify-center overflow-hidden bg-slate-950 font-semibold text-white`}
+    >
+      {profileImageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={profileImageUrl} alt={`${fullName} profile`} className="h-full w-full object-cover" />
+      ) : (
+        <span className={fallbackClassName}>{getInitials(fullName)}</span>
+      )}
+    </div>
+  );
+}
+
 function StaffAccountCard({ staffAccount }: { staffAccount: StaffAccountSummary }) {
   return (
     <article className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_14px_34px_rgba(15,23,42,0.06)] sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 gap-4">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 text-sm font-semibold text-white">
-          {staffAccount.profileImageUrl ? (
-            // Supabase public URLs are not configured for next/image in this project.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={staffAccount.profileImageUrl}
-              alt={`${staffAccount.fullName} profile`}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            getInitials(staffAccount.fullName)
-          )}
-        </div>
+        <ProfileAvatar
+          fullName={staffAccount.fullName}
+          profileImageUrl={staffAccount.profileImageUrl}
+          className="h-16 w-16 rounded-2xl border border-slate-200"
+          fallbackClassName="text-sm"
+        />
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="break-words text-base font-semibold text-slate-950">
@@ -245,7 +176,7 @@ function StaffAccountCard({ staffAccount }: { staffAccount: StaffAccountSummary 
           Email
         </a>
         <Link
-          href={`/dashboard?add=1`}
+          href="/dashboard?add=1"
           className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-blue-700 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-800 sm:min-w-28"
         >
           Assign Task
@@ -256,15 +187,16 @@ function StaffAccountCard({ staffAccount }: { staffAccount: StaffAccountSummary 
 }
 
 function TaskCard({ task }: { task: Task }) {
-  const availableStatuses = TASK_STATUSES.filter((status) => status !== task.status);
-  const taskIsOverdue = isOverdue(task);
+  const cardBorderClass = isTaskOverdue(task) ? "border-red-200" : "border-slate-200";
+  const primaryLabel =
+    task.status === "submitted"
+      ? "Review Submission"
+      : task.status === "approved"
+        ? "Open Record"
+        : "Open Task";
 
   return (
-    <article
-      className={`rounded-3xl border bg-white p-4 shadow-[0_14px_34px_rgba(15,23,42,0.06)] ${
-        taskIsOverdue ? "border-red-200" : "border-slate-200"
-      }`}
-    >
+    <article className={`rounded-3xl border bg-white p-4 shadow-[0_14px_34px_rgba(15,23,42,0.06)] ${cardBorderClass}`}>
       <div className="flex items-start gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-xs font-semibold text-white">
           {getInitials(task.assigneeName)}
@@ -273,9 +205,9 @@ function TaskCard({ task }: { task: Task }) {
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="break-words text-base font-semibold text-slate-950">{task.title}</h3>
             <span
-              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${PRIORITY_META[task.priority].className}`}
+              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${TASK_PRIORITY_META[task.priority].className}`}
             >
-              {PRIORITY_META[task.priority].label}
+              {TASK_PRIORITY_META[task.priority].label}
             </span>
           </div>
           {task.description ? (
@@ -283,53 +215,56 @@ function TaskCard({ task }: { task: Task }) {
               {task.description}
             </p>
           ) : null}
-          <p className="mt-3 break-words text-xs font-medium text-slate-500">
-            Assigned to {task.assigneeName}
-            {task.assigneeEmail ? ` (${task.assigneeEmail})` : ""}
-          </p>
+          <div className="mt-3 space-y-1 text-xs leading-5 text-slate-500">
+            <p>
+              Assigned to {task.assigneeName}
+              {task.assigneeEmail ? ` (${task.assigneeEmail})` : ""}
+            </p>
+            <p>
+              Reviewer {task.reviewerName}
+              {task.reviewerEmail ? ` (${task.reviewerEmail})` : ""}
+            </p>
+            {task.submittedAt ? <p>Last submitted {formatTaskDateTime(task.submittedAt)}</p> : null}
+            {task.approvedAt ? <p>Approved {formatTaskDateTime(task.approvedAt)}</p> : null}
+          </div>
         </div>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${STATUS_META[task.status].badgeClass}`}>
-          {STATUS_META[task.status].label}
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-semibold ${TASK_STATUS_META[task.status].badgeClass}`}
+        >
+          {TASK_STATUS_META[task.status].label}
         </span>
-        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getDueClass(task)}`}>
-          {getDueLabel(task)}
+        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTaskDueClass(task)}`}>
+          {getTaskDueLabel(task)}
         </span>
-      </div>
-
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
-        {availableStatuses.map((status) => (
-          <form key={status} action={updateTaskStatus}>
-            <input type="hidden" name="id" value={task.id} />
-            <input type="hidden" name="status" value={status} />
-            <button
-              type="submit"
-              className="min-h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-            >
-              {STATUS_META[status].action}
-            </button>
-          </form>
-        ))}
       </div>
 
       <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
         <Link
-          href={`/dashboard?edit=${task.id}`}
+          href={`/dashboard/tasks/${task.id}`}
           className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-slate-950 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800"
         >
-          Edit
+          {primaryLabel}
         </Link>
-        <form action={deleteTask}>
-          <input type="hidden" name="id" value={task.id} />
-          <button
-            type="submit"
-            className="min-h-11 rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-semibold text-red-700 hover:bg-red-100"
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/dashboard?edit=${task.id}`}
+            className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 hover:border-blue-300 hover:text-blue-700"
           >
-            Delete
-          </button>
-        </form>
+            Edit
+          </Link>
+          <form action={deleteTask}>
+            <input type="hidden" name="id" value={task.id} />
+            <button
+              type="submit"
+              className="min-h-11 rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-semibold text-red-700 hover:bg-red-100"
+            >
+              Delete
+            </button>
+          </form>
+        </div>
       </div>
     </article>
   );
@@ -342,115 +277,185 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     redirect("/");
   }
 
-  if (!accessProfile.roles.includes("admin")) {
+  if (!accessProfile.roles.includes("admin") && !accessProfile.roles.includes("hr")) {
     redirect("/staff");
   }
 
+  const accountProfile = await getCurrentAccountProfile().catch(() => null);
   const params = (await searchParams) ?? {};
   const selectedStatus = isTaskStatus(params.status) ? params.status : "all";
   const isAddMode = params.add === "1";
-  let tasks: Task[] = [];
-  let staffUsers: AssignableStaffUser[] = [];
-  let staffAccounts: StaffAccountSummary[] = [];
-  let taskLoadError: string | null = null;
-  let staffLoadError: string | null = null;
-  let staffAccountsLoadError: string | null = null;
+  const hasInvalidUpload = params.upload === "invalid";
 
-  try {
-    tasks = await getAdminTasks();
-  } catch (error) {
-    taskLoadError = error instanceof Error ? error.message : String(error);
-  }
+  const [taskResult, staffResult, reviewerResult, staffAccountsResult, notificationResult] =
+    await Promise.allSettled([
+      getManagedTasks(),
+      getAssignableStaffUsers(),
+      getTaskReviewerUsers(),
+      getStaffAccountSummaries(),
+      getUnreadNotificationCount(),
+    ]);
 
-  try {
-    staffUsers = await getAssignableStaffUsers();
-  } catch (error) {
-    staffLoadError = error instanceof Error ? error.message : String(error);
-  }
-
-  try {
-    staffAccounts = await getStaffAccountSummaries();
-  } catch (error) {
-    staffAccountsLoadError = error instanceof Error ? error.message : String(error);
-  }
+  const tasks = taskResult.status === "fulfilled" ? taskResult.value : [];
+  const staffUsers = staffResult.status === "fulfilled" ? staffResult.value : [];
+  const reviewerUsers = reviewerResult.status === "fulfilled" ? reviewerResult.value : [];
+  const staffAccounts = staffAccountsResult.status === "fulfilled" ? staffAccountsResult.value : [];
+  const unreadNotifications = notificationResult.status === "fulfilled" ? notificationResult.value : 0;
+  const taskLoadError =
+    taskResult.status === "rejected" ? taskResult.reason instanceof Error ? taskResult.reason.message : String(taskResult.reason) : null;
+  const staffLoadError =
+    staffResult.status === "rejected" ? staffResult.reason instanceof Error ? staffResult.reason.message : String(staffResult.reason) : null;
+  const reviewerLoadError =
+    reviewerResult.status === "rejected"
+      ? reviewerResult.reason instanceof Error
+        ? reviewerResult.reason.message
+        : String(reviewerResult.reason)
+      : null;
+  const staffAccountsLoadError =
+    staffAccountsResult.status === "rejected"
+      ? staffAccountsResult.reason instanceof Error
+        ? staffAccountsResult.reason.message
+        : String(staffAccountsResult.reason)
+      : null;
 
   const filteredTasks =
     selectedStatus === "all" ? tasks : tasks.filter((task) => task.status === selectedStatus);
   const taskToEdit = tasks.find((task) => task.id === params.edit) ?? null;
+  const editTaskDetail = taskToEdit ? await getTaskDetailById(taskToEdit.id).catch(() => null) : null;
   const isFormOpen = isAddMode || Boolean(taskToEdit);
-  const completedCount = tasks.filter((task) => task.status === "completed").length;
-  const inProgressCount = tasks.filter((task) => task.status === "in_progress").length;
-  const todoCount = tasks.filter((task) => task.status === "todo").length;
-  const overdueCount = tasks.filter(isOverdue).length;
-  const dueTodayCount = tasks.filter(isDueToday).length;
-  const completionRate = tasks.length === 0 ? 0 : Math.round((completedCount / tasks.length) * 100);
-  const displayName = accessProfile.fullName;
+  const inFlightCount = tasks.filter(
+    (task) => task.status === "in_progress" || task.status === "changes_requested",
+  ).length;
+  const awaitingReviewCount = tasks.filter((task) => task.status === "submitted").length;
+  const approvedCount = tasks.filter((task) => task.status === "approved").length;
+  const overdueCount = tasks.filter(isTaskOverdue).length;
+  const dueTodayCount = tasks.filter(isTaskDueToday).length;
+  const completionRate = tasks.length === 0 ? 0 : Math.round((approvedCount / tasks.length) * 100);
+  const displayName = accountProfile?.fullName || accessProfile.fullName;
+  const profileImageUrl = accountProfile?.profileImageUrl || "";
+  const roleLabel = getManagerRoleLabel(accessProfile.roles);
 
   return (
     <main className="min-h-screen bg-[linear-gradient(135deg,_#f8fafc_0%,_#e0f2fe_48%,_#ecfdf5_100%)] px-4 py-6 text-slate-950 sm:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-        <section className="rounded-3xl border border-slate-800 bg-slate-950 p-5 text-white shadow-[0_24px_90px_rgba(15,23,42,0.22)] lg:p-7">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div>
+        <section className="relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 p-5 text-white shadow-[0_24px_90px_rgba(15,23,42,0.22)] lg:p-7">
+          <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-80 bg-[radial-gradient(circle_at_center,_rgba(103,232,249,0.18),_transparent_68%)] lg:block" />
+          <div className="relative flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
+            <div className="max-w-2xl">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200">
-                Field Command
+                Review Command
               </p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-                Admin Task Board
+                Task Review Board
               </h1>
               <p className="mt-2 text-sm text-slate-300">
-                {displayName} signed in as admin
+                Assign work, review staff submissions, request corrections, and approve finished tasks.
               </p>
+              <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-white/5 px-3 py-1 text-xs font-medium text-cyan-100/90">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                {displayName} is on review duty
+              </div>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Link
-                href="/account"
-                className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-5 py-3 text-sm font-medium text-white hover:border-cyan-200 hover:bg-white/15"
-              >
-                My Account
-              </Link>
-              <Link
-                href="/dashboard?add=1"
-                className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-cyan-200"
-              >
-                Assign Task
-              </Link>
-              <form action={logout}>
-                <button
-                  type="submit"
-                  className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-5 py-3 text-sm font-medium text-white hover:border-cyan-200 hover:bg-white/15 sm:w-auto"
+            <div className="flex w-full max-w-2xl flex-col gap-4 xl:items-end">
+              <div className="flex w-full flex-col gap-4 rounded-3xl border border-white/10 bg-white/[0.06] p-3 shadow-[0_18px_45px_rgba(8,15,40,0.32)] backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-4">
+                  <div className="relative">
+                    <div className="absolute inset-0 rounded-[1.45rem] bg-cyan-300/25 blur-md" />
+                    <ProfileAvatar
+                      fullName={displayName}
+                      profileImageUrl={profileImageUrl}
+                      className="relative h-[4.5rem] w-[4.5rem] rounded-[1.45rem] border border-white/15 ring-2 ring-cyan-300/25"
+                      fallbackClassName="text-base"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-200">
+                      Signed In
+                    </p>
+                    <p className="mt-1 truncate text-lg font-semibold text-white sm:text-xl">
+                      {displayName}
+                    </p>
+                    <p className="truncate text-sm text-slate-300">{accessProfile.email}</p>
+                  </div>
+                </div>
+                <div className="flex items-center">
+                  <span className="rounded-full border border-emerald-300/25 bg-emerald-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200">
+                    {roleLabel}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-end">
+                <Link
+                  href="/notifications"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-5 py-3 text-sm font-medium text-white transition-colors hover:border-cyan-200 hover:bg-white/15"
                 >
-                  Logout
-                </button>
-              </form>
+                  Notifications
+                  <span className="rounded-full bg-cyan-300 px-2 py-0.5 text-xs font-semibold text-slate-950">
+                    {unreadNotifications}
+                  </span>
+                </Link>
+                <Link
+                  href="/account"
+                  className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-5 py-3 text-sm font-medium text-white transition-colors hover:border-cyan-200 hover:bg-white/15"
+                >
+                  My Account
+                </Link>
+                <Link
+                  href="/dashboard?add=1"
+                  className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-950 transition-colors hover:bg-cyan-200"
+                >
+                  Assign Task
+                </Link>
+                <form action={logout}>
+                  <button
+                    type="submit"
+                    className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-5 py-3 text-sm font-medium text-white transition-colors hover:border-cyan-200 hover:bg-white/15 sm:w-auto"
+                  >
+                    Logout
+                  </button>
+                </form>
+              </div>
             </div>
           </div>
         </section>
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <MetricCard detail={`${staffAccounts.length} staff`} label="Total Tasks" tone="slate" value={tasks.length} />
+          <MetricCard detail="active or rework" label="In Motion" tone="blue" value={inFlightCount} />
           <MetricCard
-            detail="staff ready"
-            label="Staff"
-            tone="slate"
-            value={staffAccounts.length}
+            detail="waiting for approval"
+            label="Awaiting Review"
+            tone="amber"
+            value={awaitingReviewCount}
           />
-          <MetricCard detail={`${todoCount} queued`} label="Total Tasks" tone="blue" value={tasks.length} />
-          <MetricCard detail="in progress" label="Active" tone="emerald" value={inProgressCount} />
-          <MetricCard detail={`${dueTodayCount} due today`} label="Overdue" tone="red" value={overdueCount} />
-          <MetricCard detail="finished" label="Complete" tone="amber" value={`${completionRate}%`} />
+          <MetricCard detail={`${completionRate}% closed`} label="Approved" tone="emerald" value={approvedCount} />
+          <MetricCard detail={`${dueTodayCount} due today`} label="Overdue" tone="rose" value={overdueCount} />
         </section>
 
         {staffUsers.length === 0 && !staffLoadError ? (
           <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">
-            No staff accounts are ready for assignment. Create staff accounts first, then assign
-            tasks from this admin dashboard.
+            No staff accounts are ready for assignment. Create staff accounts first, then assign work.
+          </section>
+        ) : null}
+
+        {reviewerUsers.length === 0 && !reviewerLoadError ? (
+          <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">
+            No active reviewers are available yet. At least one admin or HR account should be active
+            before assigning review-based work.
           </section>
         ) : null}
 
         {staffLoadError ? (
           <section className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm leading-6 text-red-700">
             Staff accounts could not be loaded. Backend error: {staffLoadError}
+          </section>
+        ) : null}
+
+        {reviewerLoadError ? (
+          <section className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm leading-6 text-red-700">
+            Reviewer accounts could not be loaded. Backend error: {reviewerLoadError}
           </section>
         ) : null}
 
@@ -461,13 +466,19 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           </section>
         ) : null}
 
+        {hasInvalidUpload ? (
+          <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">
+            Reference file upload failed. Use up to 5 supported files under 25 MB each.
+          </section>
+        ) : null}
+
         <section className="rounded-3xl border border-white/80 bg-white/90 shadow-[0_20px_70px_rgba(15,23,42,0.08)] backdrop-blur">
           <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-5 lg:flex-row lg:items-center lg:justify-between lg:px-7">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
                 Accounts
               </p>
-              <h2 className="mt-2 text-2xl font-semibold">Staff Account Directory</h2>
+              <h2 className="mt-2 text-2xl font-semibold">Staff Directory</h2>
             </div>
             <span className="w-fit rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white">
               {staffAccounts.length} staff
@@ -477,7 +488,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           <div className="space-y-3 px-5 py-5 lg:px-7">
             {staffAccountsLoadError ? (
               <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm leading-6 text-red-700">
-                Staff account directory could not be loaded. Backend error: {staffAccountsLoadError}
+                Staff directory could not be loaded. Backend error: {staffAccountsLoadError}
               </div>
             ) : staffAccounts.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
@@ -500,7 +511,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
                 Workflow
               </p>
-              <h2 className="mt-2 text-2xl font-semibold">Assignment Board</h2>
+              <h2 className="mt-2 text-2xl font-semibold">Review Pipeline</h2>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -524,7 +535,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                       : "border border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:text-blue-700"
                   }`}
                 >
-                  {STATUS_META[status].label}
+                  {TASK_STATUS_META[status].label}
                 </Link>
               ))}
             </div>
@@ -533,9 +544,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           {filteredTasks.length === 0 ? (
             <div className="px-5 py-12 text-center lg:px-7">
               <div className="mx-auto max-w-md rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10">
-                <h3 className="text-lg font-semibold text-slate-950">No tasks here yet</h3>
+                <h3 className="text-lg font-semibold text-slate-950">No tasks in this view</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Assign a task to a staff member or switch filters to review another status.
+                  Assign a task to a staff member or switch filters to review another workflow state.
                 </p>
                 <Link
                   href="/dashboard?add=1"
@@ -546,17 +557,20 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               </div>
             </div>
           ) : selectedStatus === "all" ? (
-            <div className="grid gap-4 px-5 py-5 lg:grid-cols-3 lg:px-7">
+            <div className="grid gap-4 px-5 py-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 lg:px-7">
               {TASK_STATUSES.map((status) => {
                 const columnTasks = filteredTasks.filter((task) => task.status === status);
 
                 return (
                   <section
                     key={status}
-                    className={`min-h-72 rounded-2xl border p-4 ${STATUS_META[status].columnClass}`}
+                    className={`min-h-72 rounded-2xl border p-4 ${TASK_STATUS_META[status].columnClass}`}
                   >
                     <div className="mb-4 flex items-center justify-between gap-3">
-                      <h3 className="font-semibold text-slate-950">{STATUS_META[status].label}</h3>
+                      <div>
+                        <h3 className="font-semibold text-slate-950">{TASK_STATUS_META[status].label}</h3>
+                        <p className="mt-1 text-xs text-slate-500">{TASK_STATUS_META[status].description}</p>
+                      </div>
                       <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 ring-1 ring-inset ring-slate-200">
                         {columnTasks.length}
                       </span>
@@ -607,7 +621,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               <div className="px-6 py-6">
                 <TaskForm
                   action={taskToEdit ? updateTask : createTask}
+                  existingReferenceFiles={editTaskDetail?.referenceFiles ?? []}
                   isTaskStorageReady={!taskLoadError}
+                  reviewerUsers={reviewerUsers}
                   staffUsers={staffUsers}
                   taskToEdit={taskToEdit}
                 />
