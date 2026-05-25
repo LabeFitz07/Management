@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSupabaseServerClient } from "@/lib/supabase-server";
 import { getDepartments } from "@/lib/department-store";
 import { getPublicSignupJobRoles } from "@/lib/job-role-store";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { login, signUp } from "./auth-actions";
 import { SignupModal } from "./signup-modal";
 
@@ -35,7 +36,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const departmentOptions = departments.map((department) => department.name);
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(135deg,_#f8fafc_0%,_#e0f2fe_48%,_#ecfdf5_100%)] px-4 py-8 text-slate-950 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-[linear-gradient(135deg,_#f8fafc_0%,_#e0f2fe_48%,_#ecfdf5_100%)] px-4 py-8 text-slate-950 dark:bg-[linear-gradient(135deg,_#020617_0%,_#0f172a_52%,_#082f49_100%)] dark:text-slate-100 sm:px-6 lg:px-8">
+      <div className="mx-auto mb-4 flex w-full max-w-6xl justify-end">
+        <ThemeToggle />
+      </div>
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-6xl items-center gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <section className="rounded-3xl border border-slate-800 bg-slate-950 p-7 text-white shadow-[0_24px_90px_rgba(15,23,42,0.22)] sm:p-10">
           <div className="flex items-center gap-3">
@@ -94,66 +98,66 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         </section>
 
         <section className="grid gap-5 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-          <div className="rounded-3xl border border-white/80 bg-white/90 p-6 shadow-[0_20px_70px_rgba(15,23,42,0.10)] backdrop-blur sm:p-8">
+          <div className="rounded-3xl border border-white/80 bg-white/90 p-6 shadow-[0_20px_70px_rgba(15,23,42,0.10)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80 sm:p-8">
             <div className="mb-7">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
                 Login
               </p>
-              <h2 className="mt-2 text-3xl font-semibold tracking-tight">Access your tasks</h2>
+              <h2 className="mt-2 text-3xl font-semibold tracking-tight dark:text-white">Access your tasks</h2>
             </div>
 
             <form action={login} className="space-y-4">
               <label className="block space-y-2">
-                <span className="text-sm font-medium text-slate-700">Email</span>
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Email</span>
                 <input
                   type="email"
                   name="email"
                   autoComplete="email"
                   required
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-cyan-400 dark:focus:ring-cyan-950/60"
                   placeholder="you@example.com"
                 />
               </label>
 
               <label className="block space-y-2">
-                <span className="text-sm font-medium text-slate-700">Password</span>
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Password</span>
                 <input
                   type="password"
                   name="password"
                   autoComplete="current-password"
                   required
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-cyan-400 dark:focus:ring-cyan-950/60"
                   placeholder="Enter password"
                 />
               </label>
 
               {hasInvalidLogin ? (
-                <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
                   Invalid email or password.
                 </p>
               ) : null}
 
               {hasSessionError ? (
-                <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
                   Please sign in again to continue.
                 </p>
               ) : null}
 
               {hasUnauthorizedError ? (
-                <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
                   Your account is not active yet. Contact an admin before continuing.
                 </p>
               ) : null}
 
               {hasPendingApprovalError ? (
-                <p className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                <p className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-cyan-900 dark:bg-cyan-950/40 dark:text-cyan-200">
                   Your staff account is still waiting for department admin approval. You can log in after it is approved.
                 </p>
               ) : null}
 
               <button
                 type="submit"
-                className="min-h-12 w-full rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+                className="min-h-12 w-full rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200"
               >
                 Login
               </button>

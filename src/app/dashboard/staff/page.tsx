@@ -256,7 +256,10 @@ export default async function DashboardStaffPage({ searchParams }: DashboardStaf
       ) : null}
 
       {pendingRequests.length > 0 ? (
-        <section className="rounded-[2rem] border border-blue-200 bg-white/90 shadow-[0_20px_70px_rgba(15,23,42,0.08)] backdrop-blur">
+        <section
+          id="approval-queue"
+          className="rounded-[2rem] border border-blue-200 bg-white/90 shadow-[0_20px_70px_rgba(15,23,42,0.08)] backdrop-blur"
+        >
           <div className="flex flex-col gap-3 border-b border-blue-100 px-6 py-6 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Approval Queue</p>

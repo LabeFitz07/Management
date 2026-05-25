@@ -18,6 +18,7 @@ import {
   getTaskWorkSortValue,
   isTaskOverdue,
 } from "@/lib/task-ui";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { logout } from "../auth-actions";
 import { updateTaskStatus } from "../task-actions";
 
@@ -28,10 +29,10 @@ type StaffPageProps = {
 };
 
 const METRIC_TONE_CLASS = {
-  slate: "border-slate-200 bg-white text-slate-950",
-  blue: "border-blue-200 bg-blue-50 text-blue-950",
-  amber: "border-amber-200 bg-amber-50 text-amber-950",
-  emerald: "border-emerald-200 bg-emerald-50 text-emerald-950",
+  slate: "border-slate-200 bg-white text-slate-950 dark:border-slate-800 dark:bg-slate-950/80 dark:text-slate-100",
+  blue: "border-blue-200 bg-blue-50 text-blue-950 dark:border-cyan-900 dark:bg-cyan-950/40 dark:text-cyan-100",
+  amber: "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100",
+  emerald: "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100",
 } as const;
 
 function isTaskStatus(value: string | undefined): value is TaskStatus {
@@ -73,7 +74,7 @@ function ProgressActions({ task }: { task: Task }) {
   const canSetTodo = task.status !== "todo";
 
   return (
-    <div className="mt-5 grid gap-2 border-t border-slate-100 pt-4 sm:grid-cols-[1fr_auto]">
+    <div className="mt-5 grid gap-2 border-t border-slate-100 pt-4 dark:border-slate-800 sm:grid-cols-[1fr_auto]">
       {canSetInProgress ? (
         <form action={updateTaskStatus}>
           <input type="hidden" name="id" value={task.id} />
@@ -101,7 +102,7 @@ function ProgressActions({ task }: { task: Task }) {
             <input type="hidden" name="status" value="todo" />
             <button
               type="submit"
-              className="min-h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+              className="min-h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-cyan-400 dark:hover:bg-slate-950 dark:hover:text-cyan-300"
             >
               Move to To Do
             </button>
@@ -117,14 +118,14 @@ function TaskCard({ task }: { task: Task }) {
 
   return (
     <article
-      className={`rounded-3xl border bg-white p-5 shadow-[0_16px_42px_rgba(15,23,42,0.07)] ${
-        taskIsOverdue ? "border-red-200" : "border-slate-200"
+      className={`rounded-3xl border bg-white p-5 shadow-[0_16px_42px_rgba(15,23,42,0.07)] dark:bg-slate-950/80 ${
+        taskIsOverdue ? "border-red-200 dark:border-red-900" : "border-slate-200 dark:border-slate-800"
       }`}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="break-words text-lg font-semibold text-slate-950">{task.title}</h3>
+            <h3 className="break-words text-lg font-semibold text-slate-950 dark:text-white">{task.title}</h3>
             <span
               className={`rounded-full px-3 py-1 text-xs font-semibold ${TASK_PRIORITY_META[task.priority].className}`}
             >
@@ -132,9 +133,9 @@ function TaskCard({ task }: { task: Task }) {
             </span>
           </div>
           {task.description ? (
-            <p className="mt-2 break-words text-sm leading-6 text-slate-600">{task.description}</p>
+            <p className="mt-2 break-words text-sm leading-6 text-slate-600 dark:text-slate-400">{task.description}</p>
           ) : null}
-          <div className="mt-3 space-y-1 text-xs leading-5 text-slate-500">
+          <div className="mt-3 space-y-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
             <p>Reviewer {task.reviewerName}</p>
             {task.submittedAt ? <p>Latest submission {formatTaskDateTime(task.submittedAt)}</p> : null}
             {task.approvedAt ? <p>Approved {formatTaskDateTime(task.approvedAt)}</p> : null}
@@ -142,7 +143,7 @@ function TaskCard({ task }: { task: Task }) {
         </div>
         <Link
           href={`/staff/tasks/${task.id}`}
-          className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-blue-300 hover:text-blue-700"
+          className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-blue-300 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-cyan-400 dark:hover:text-cyan-300"
         >
           Open Workspace
         </Link>
@@ -160,19 +161,19 @@ function TaskCard({ task }: { task: Task }) {
       </div>
 
       {task.status === "submitted" ? (
-        <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
           Your work has been submitted and is waiting for reviewer approval.
         </div>
       ) : null}
 
       {task.status === "approved" ? (
-        <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
           This task was approved. Open the workspace to review the final record and attachments.
         </div>
       ) : null}
 
       {task.status === "changes_requested" ? (
-        <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
           The reviewer requested revisions. Open the workspace, check the feedback, then resubmit.
         </div>
       ) : null}
@@ -220,7 +221,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
   const overdueCount = tasks.filter(isTaskOverdue).length;
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(135deg,_#f8fafc_0%,_#e0f2fe_48%,_#ecfdf5_100%)] px-4 py-6 text-slate-950 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-[linear-gradient(135deg,_#f8fafc_0%,_#e0f2fe_48%,_#ecfdf5_100%)] px-4 py-6 text-slate-950 dark:bg-[linear-gradient(135deg,_#020617_0%,_#0f172a_52%,_#082f49_100%)] dark:text-slate-100 sm:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
         <section className="rounded-3xl border border-slate-800 bg-slate-950 p-5 text-white shadow-[0_24px_90px_rgba(15,23,42,0.22)] lg:p-7">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
@@ -237,6 +238,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+              <ThemeToggle className="border-white/15 bg-white/10 text-white shadow-none hover:border-cyan-200 hover:bg-white/15 hover:text-white dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-cyan-400 dark:hover:bg-slate-950 dark:hover:text-cyan-300" />
               <Link
                 href="/notifications"
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-5 py-3 text-sm font-medium text-white hover:border-cyan-200 hover:bg-white/15"
@@ -277,27 +279,27 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
         </section>
 
         {taskLoadError ? (
-          <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">
+          <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
             Task storage is not ready yet. Ask the admin to apply the updated Supabase schema.
             Backend error: {taskLoadError}
           </section>
         ) : null}
 
-        <section className="rounded-3xl border border-white/80 bg-white/90 shadow-[0_20px_70px_rgba(15,23,42,0.08)] backdrop-blur">
-          <div className="flex flex-col gap-4 border-b border-slate-200 px-5 py-5 lg:flex-row lg:items-center lg:justify-between lg:px-7">
+        <section className="rounded-3xl border border-white/80 bg-white/90 shadow-[0_20px_70px_rgba(15,23,42,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+          <div className="flex flex-col gap-4 border-b border-slate-200 px-5 py-5 dark:border-slate-800 lg:flex-row lg:items-center lg:justify-between lg:px-7">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
                 Work Queue
               </p>
-              <h2 className="mt-2 text-2xl font-semibold">Assigned to me</h2>
+              <h2 className="mt-2 text-2xl font-semibold dark:text-white">Assigned to me</h2>
             </div>
             <div className="flex flex-wrap gap-2">
               <Link
                 href="/staff"
                 className={`rounded-2xl px-4 py-2 text-sm font-medium ${
                   selectedStatus === "all"
-                    ? "bg-slate-950 text-white"
-                    : "border border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:text-blue-700"
+                    ? "bg-slate-950 text-white dark:bg-cyan-300 dark:text-slate-950"
+                    : "border border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-cyan-400 dark:hover:text-cyan-300"
                 }`}
               >
                 All
@@ -308,8 +310,8 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                   href={`/staff?status=${status}`}
                   className={`rounded-2xl px-4 py-2 text-sm font-medium ${
                     selectedStatus === status
-                      ? "bg-slate-950 text-white"
-                      : "border border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:text-blue-700"
+                      ? "bg-slate-950 text-white dark:bg-cyan-300 dark:text-slate-950"
+                      : "border border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-cyan-400 dark:hover:text-cyan-300"
                   }`}
                 >
                   {TASK_STATUS_META[status].label}
@@ -320,9 +322,9 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
 
           <div className="px-5 py-5 lg:px-7">
             {sortedTasks.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
-                <h3 className="text-lg font-semibold text-slate-950">No tasks in this view</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center dark:border-slate-700 dark:bg-slate-900/70">
+                <h3 className="text-lg font-semibold text-slate-950 dark:text-white">No tasks in this view</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">
                   {tasks.length === 0
                     ? "New work appears here after an admin or HR reviewer assigns it to your account."
                     : "Switch filters to review another workflow state."}

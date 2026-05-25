@@ -3,9 +3,10 @@ import { redirect } from "next/navigation";
 import { getCurrentAccountProfile } from "@/lib/account-store";
 import { getCurrentUserAccessProfile } from "@/lib/authz";
 import { getUnreadNotificationCount } from "@/lib/notification-store";
+import { getPendingStaffApprovalCountForAccess } from "@/lib/staff-approval-alerts";
 import { canAccessDashboard, getRoleDisplayLabel, isDepartmentAdminRole } from "@/lib/roles";
+import { DashboardNotificationButton } from "@/components/dashboard/DashboardNotificationButton";
 import { DashboardSettingsMenu } from "@/components/dashboard/DashboardSettingsMenu";
-import { DashboardThemeProvider } from "@/components/dashboard/DashboardThemeProvider";
 import { DEPARTMENT_ADMIN_SIDEBAR_ITEMS, SidebarNav } from "./sidebar-nav";
 
 function getInitials(fullName: string) {
@@ -34,22 +35,23 @@ export default async function DashboardLayout({
     redirect("/staff");
   }
 
-  const [accountProfile, unreadNotifications] = await Promise.all([
+  const [accountProfile, unreadNotifications, pendingApprovalCount] = await Promise.all([
     getCurrentAccountProfile().catch(() => null),
     getUnreadNotificationCount().catch(() => 0),
+    getPendingStaffApprovalCountForAccess(accessProfile).catch(() => 0),
   ]);
 
   const displayName = accountProfile?.fullName || accessProfile.fullName;
   const profileImageUrl = accountProfile?.profileImageUrl || "";
   const roleLabel = getRoleDisplayLabel(accessProfile.roles);
   const sidebarItems = isDepartmentAdminRole(accessProfile.roles) ? DEPARTMENT_ADMIN_SIDEBAR_ITEMS : undefined;
+  const totalAttentionCount = unreadNotifications + pendingApprovalCount;
 
   return (
-    <DashboardThemeProvider>
-      <main className="min-h-screen bg-[linear-gradient(140deg,_#edf6ff_0%,_#f8fafc_40%,_#eefbf5_100%)] px-4 py-6 text-slate-950 dark:bg-[linear-gradient(140deg,_#020617_0%,_#0f172a_38%,_#082f49_100%)] dark:text-slate-100 sm:px-6 lg:px-8">
-        <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-6 xl:flex-row">
-          <aside className="xl:sticky xl:top-6 xl:h-[calc(100vh-3rem)] xl:w-[300px] xl:flex-shrink-0">
-            <div className="flex h-full flex-col rounded-[2rem] border border-white/70 bg-white/85 p-5 shadow-[0_24px_70px_rgba(15,23,42,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+    <main className="min-h-screen bg-[linear-gradient(140deg,_#edf6ff_0%,_#f8fafc_40%,_#eefbf5_100%)] px-4 py-6 text-slate-950 dark:bg-[linear-gradient(140deg,_#020617_0%,_#0f172a_38%,_#082f49_100%)] dark:text-slate-100 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-6 xl:flex-row">
+        <aside className="xl:sticky xl:top-6 xl:h-[calc(100vh-3rem)] xl:w-[300px] xl:flex-shrink-0">
+          <div className="flex h-full flex-col rounded-[2rem] border border-white/70 bg-white/85 p-5 shadow-[0_24px_70px_rgba(15,23,42,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
               <div className="rounded-[1.75rem] bg-slate-950 p-5 text-white shadow-[0_20px_50px_rgba(15,23,42,0.22)] dark:bg-[linear-gradient(135deg,_#082f49_0%,_#0f172a_60%,_#111827_100%)]">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-200">
                   Admin Console
@@ -88,10 +90,14 @@ export default async function DashboardLayout({
                     {roleLabel}
                   </span>
                   <Link
-                    href="/notifications"
-                    className="rounded-full bg-slate-950 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white dark:bg-slate-800"
+                    href={pendingApprovalCount > 0 ? "/dashboard/staff#approval-queue" : "/notifications"}
+                    className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${
+                      pendingApprovalCount > 0
+                        ? "bg-rose-600 text-white ring-1 ring-inset ring-rose-400 dark:bg-rose-500"
+                        : "bg-slate-950 text-white dark:bg-slate-800"
+                    }`}
                   >
-                    {unreadNotifications} notifications
+                    {totalAttentionCount} notifications
                   </Link>
                 </div>
               </div>
@@ -105,11 +111,11 @@ export default async function DashboardLayout({
                 </Link>
               </div>
             </div>
-          </aside>
+        </aside>
 
-          <section className="min-w-0 flex-1">
-            <div className="mb-6 flex flex-col gap-4 rounded-[2rem] border border-white/80 bg-white/90 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/75 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-              <div className="flex min-w-0 items-center gap-4">
+        <section className="min-w-0 flex-1">
+          <div className="mb-6 flex flex-col gap-4 rounded-[2rem] border border-white/80 bg-white/90 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/75 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+            <div className="flex min-w-0 items-center gap-4">
                 {profileImageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -137,6 +143,11 @@ export default async function DashboardLayout({
                 </div>
               </div>
 
+            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+              <DashboardNotificationButton
+                pendingApprovalCount={pendingApprovalCount}
+                unreadNotificationCount={unreadNotifications}
+              />
               <DashboardSettingsMenu
                 displayName={displayName}
                 email={accessProfile.email}
@@ -144,11 +155,11 @@ export default async function DashboardLayout({
                 profileImageUrl={profileImageUrl}
               />
             </div>
+          </div>
 
-            {children}
-          </section>
-        </div>
-      </main>
-    </DashboardThemeProvider>
+          {children}
+        </section>
+      </div>
+    </main>
   );
 }

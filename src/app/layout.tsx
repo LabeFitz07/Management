@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { DASHBOARD_THEME_STORAGE_KEY } from "@/components/dashboard/DashboardThemeProvider";
+import { APP_THEME_STORAGE_KEY, AppThemeProvider } from "@/components/dashboard/DashboardThemeProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -19,7 +19,7 @@ export default function RootLayout({
         <Script id="dashboard-theme-init" strategy="beforeInteractive">
           {`(() => {
             try {
-              const storedTheme = window.localStorage.getItem("${DASHBOARD_THEME_STORAGE_KEY}");
+              const storedTheme = window.localStorage.getItem("${APP_THEME_STORAGE_KEY}");
               const theme = storedTheme === "dark" || storedTheme === "light"
                 ? storedTheme
                 : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
@@ -29,7 +29,7 @@ export default function RootLayout({
             } catch {}
           })();`}
         </Script>
-        {children}
+        <AppThemeProvider>{children}</AppThemeProvider>
       </body>
     </html>
   );

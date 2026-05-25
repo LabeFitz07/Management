@@ -8,7 +8,8 @@ type DashboardThemeProviderProps = {
 
 export type DashboardTheme = "light" | "dark";
 
-export const DASHBOARD_THEME_STORAGE_KEY = "management-dashboard-theme";
+export const APP_THEME_STORAGE_KEY = "management-dashboard-theme";
+export const DASHBOARD_THEME_STORAGE_KEY = APP_THEME_STORAGE_KEY;
 
 type DashboardThemeContextValue = {
   theme: DashboardTheme;
@@ -28,7 +29,7 @@ function getInitialTheme(): DashboardTheme {
     return "light";
   }
 
-  const storedTheme = window.localStorage.getItem(DASHBOARD_THEME_STORAGE_KEY);
+  const storedTheme = window.localStorage.getItem(APP_THEME_STORAGE_KEY);
 
   if (storedTheme === "dark" || storedTheme === "light") {
     return storedTheme;
@@ -37,23 +38,31 @@ function getInitialTheme(): DashboardTheme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-export function DashboardThemeProvider({ children }: DashboardThemeProviderProps) {
+export function AppThemeProvider({ children }: DashboardThemeProviderProps) {
   const [theme, setTheme] = useState<DashboardTheme>(getInitialTheme);
 
   useEffect(() => {
     applyTheme(theme);
-    window.localStorage.setItem(DASHBOARD_THEME_STORAGE_KEY, theme);
+    window.localStorage.setItem(APP_THEME_STORAGE_KEY, theme);
   }, [theme]);
 
   return <DashboardThemeContext.Provider value={{ theme, setTheme }}>{children}</DashboardThemeContext.Provider>;
 }
 
-export function useDashboardTheme() {
+export function DashboardThemeProvider({ children }: DashboardThemeProviderProps) {
+  return <AppThemeProvider>{children}</AppThemeProvider>;
+}
+
+export function useAppTheme() {
   const context = useContext(DashboardThemeContext);
 
   if (!context) {
-    throw new Error("useDashboardTheme must be used within DashboardThemeProvider.");
+    throw new Error("useAppTheme must be used within AppThemeProvider.");
   }
 
   return context;
+}
+
+export function useDashboardTheme() {
+  return useAppTheme();
 }

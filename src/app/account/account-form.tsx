@@ -11,9 +11,9 @@ type AccountFormProps = {
 };
 
 const inputClassName =
-  "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-100";
+  "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-cyan-400 dark:focus:ring-cyan-950/60";
 const panelClassName =
-  "rounded-3xl border border-white/80 bg-white/95 p-5 shadow-[0_18px_60px_rgba(15,23,42,0.08)] backdrop-blur";
+  "rounded-3xl border border-white/80 bg-white/95 p-5 shadow-[0_18px_60px_rgba(15,23,42,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80";
 
 function Field({
   children,
@@ -24,7 +24,7 @@ function Field({
 }) {
   return (
     <label className="block space-y-2">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
+      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</span>
       {children}
     </label>
   );
@@ -42,10 +42,10 @@ function Panel({
   return (
     <section className={`${panelClassName} space-y-5`}>
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
           {eyebrow}
         </p>
-        <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">{title}</h2>
+        <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-950 dark:text-white">{title}</h2>
       </div>
       {children}
     </section>
@@ -107,7 +107,7 @@ export function AccountForm({ action, account }: AccountFormProps) {
       <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
         <section className={`${panelClassName} space-y-5`}>
           <div className="flex items-center gap-4">
-            <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-slate-200 bg-slate-950 text-xl font-semibold text-white shadow-inner">
+            <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-slate-200 bg-slate-950 text-xl font-semibold text-white shadow-inner dark:border-slate-700 dark:bg-cyan-300 dark:text-slate-950">
               {profileImagePreview ? (
                 // Blob previews and public Supabase URLs are intentionally rendered as plain images here.
                 // eslint-disable-next-line @next/next/no-img-element
@@ -121,13 +121,13 @@ export function AccountForm({ action, account }: AccountFormProps) {
               )}
             </div>
             <div className="min-w-0">
-              <p className="truncate text-lg font-semibold text-slate-950">{account.fullName}</p>
-              <p className="mt-1 truncate text-sm text-slate-500">{account.email}</p>
+              <p className="truncate text-lg font-semibold text-slate-950 dark:text-white">{account.fullName}</p>
+              <p className="mt-1 truncate text-sm text-slate-500 dark:text-slate-400">{account.email}</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-200">
+                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-200 dark:bg-cyan-950/60 dark:text-cyan-200 dark:ring-cyan-900">
                   {getRoleLabel(account.roles)}
                 </span>
-                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:ring-emerald-900">
                   {statusLabel}
                 </span>
               </div>
@@ -140,24 +140,24 @@ export function AccountForm({ action, account }: AccountFormProps) {
               name="profileImage"
               accept="image/jpeg,image/png,image/webp"
               onChange={handleProfileImageChange}
-              className="block w-full cursor-pointer rounded-2xl border border-slate-200 bg-white text-sm text-slate-700 file:mr-4 file:border-0 file:bg-slate-950 file:px-4 file:py-3 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-800"
+              className="block w-full cursor-pointer rounded-2xl border border-slate-200 bg-white text-sm text-slate-700 file:mr-4 file:border-0 file:bg-slate-950 file:px-4 file:py-3 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:file:bg-cyan-300 dark:file:text-slate-950 dark:hover:file:bg-cyan-200"
             />
           </Field>
 
-          <div className="grid grid-cols-2 gap-3 border-t border-slate-200 pt-4">
-            <div className="rounded-2xl bg-slate-50 p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+          <div className="grid grid-cols-2 gap-3 border-t border-slate-200 pt-4 dark:border-slate-800">
+            <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-900">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                 Employee ID
               </p>
-              <p className="mt-2 truncate text-sm font-semibold text-slate-800">
+              <p className="mt-2 truncate text-sm font-semibold text-slate-800 dark:text-slate-200">
                 {account.employeeId || "Not set"}
               </p>
             </div>
-            <div className="rounded-2xl bg-slate-50 p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+            <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-900">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                 Start Date
               </p>
-              <p className="mt-2 truncate text-sm font-semibold text-slate-800">
+              <p className="mt-2 truncate text-sm font-semibold text-slate-800 dark:text-slate-200">
                 {formatDate(account.startDate)}
               </p>
             </div>
@@ -166,10 +166,10 @@ export function AccountForm({ action, account }: AccountFormProps) {
 
         <section className={`${panelClassName} space-y-4`}>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
               Credentials
             </p>
-            <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">
+            <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-950 dark:text-white">
               Update login access
             </h2>
           </div>

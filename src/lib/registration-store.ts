@@ -203,6 +203,31 @@ export async function getPendingStaffRegistrationRequests(visibleDepartments?: s
     .map(mapRequest);
 }
 
+export async function getPendingStaffRegistrationRequestCount(visibleDepartments?: string[]) {
+  const adminSupabase = getSupabaseAdminClient();
+  const normalizedDepartments = normalizeDepartmentNames(visibleDepartments);
+  let query = adminSupabase
+    .from("staff_registration_requests")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "pending");
+
+  if (normalizedDepartments.length > 0) {
+    query = query.in("department", normalizedDepartments);
+  }
+
+  const { count, error } = await query;
+
+  if (error) {
+    if (isMissingRegistrationTableError(error.message)) {
+      return 0;
+    }
+
+    throw new Error(`Failed to count pending registration requests: ${error.message}`);
+  }
+
+  return count ?? 0;
+}
+
 async function upsertApprovedUserProfile(userId: string, request: StaffRegistrationRequestRow) {
   const adminSupabase = getSupabaseAdminClient();
   const { data: existingProfile, error: existingProfileError } = await adminSupabase

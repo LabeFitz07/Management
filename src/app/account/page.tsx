@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentAccountProfile } from "@/lib/account-store";
 import { canAccessDashboard, getRoleDisplayLabel } from "@/lib/roles";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { logout } from "../auth-actions";
 import { AccountForm } from "./account-form";
 import { updateAccount } from "./actions";
@@ -14,35 +15,35 @@ type AccountPageProps = {
 
 const STATUS_MESSAGES: Record<string, { className: string; text: string }> = {
   saved: {
-    className: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    className: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
     text: "Account changes saved.",
   },
   invalid: {
-    className: "border-amber-200 bg-amber-50 text-amber-900",
+    className: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300",
     text: "Complete all required profile fields before saving.",
   },
   mismatch: {
-    className: "border-amber-200 bg-amber-50 text-amber-900",
+    className: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300",
     text: "New password and confirmation must match and be at least 6 characters.",
   },
   photo: {
-    className: "border-amber-200 bg-amber-50 text-amber-900",
+    className: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300",
     text: "Upload a JPG, PNG, or WebP profile picture under 5 MB.",
   },
   "photo-upload": {
-    className: "border-amber-200 bg-amber-50 text-amber-900",
+    className: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300",
     text: "Account changes saved, but the profile picture could not be uploaded.",
   },
   exists: {
-    className: "border-amber-200 bg-amber-50 text-amber-900",
+    className: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300",
     text: "That email is already used by another account.",
   },
   credentials: {
-    className: "border-red-200 bg-red-50 text-red-700",
+    className: "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300",
     text: "Credentials could not be updated. Try again or use a different email.",
   },
   setup: {
-    className: "border-red-200 bg-red-50 text-red-700",
+    className: "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300",
     text: "Account setup is not ready. Apply the updated Supabase schema and storage setup.",
   },
 };
@@ -66,7 +67,7 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
   const message = params.status ? STATUS_MESSAGES[params.status] : null;
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(135deg,_#f8fafc_0%,_#e0f2fe_48%,_#ecfdf5_100%)] px-4 py-6 text-slate-950 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-[linear-gradient(135deg,_#f8fafc_0%,_#e0f2fe_48%,_#ecfdf5_100%)] px-4 py-6 text-slate-950 dark:bg-[linear-gradient(135deg,_#020617_0%,_#0f172a_52%,_#082f49_100%)] dark:text-slate-100 sm:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
         <section className="rounded-3xl border border-slate-800 bg-slate-950 p-5 text-white shadow-[0_24px_90px_rgba(15,23,42,0.22)] lg:p-7">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
@@ -90,6 +91,7 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <ThemeToggle className="border-white/15 bg-white/10 text-white shadow-none hover:border-cyan-200 hover:bg-white/15 hover:text-white dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-cyan-400 dark:hover:bg-slate-950 dark:hover:text-cyan-300" />
               <Link
                 href={getReturnHref(account.roles)}
                 className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-5 py-3 text-sm font-medium text-white hover:border-cyan-200 hover:bg-white/15"

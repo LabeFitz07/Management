@@ -13,51 +13,51 @@ type SignupModalProps = {
 };
 
 const inputClassName =
-  "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100";
+  "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-cyan-400 dark:focus:ring-cyan-950/60";
 
 const signupMessages: Record<string, { tone: string; text: string }> = {
   invalid: {
-    tone: "border-amber-200 bg-amber-50 text-amber-900",
+    tone: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300",
     text: "Complete the required fields, use a valid email, and enter a password with at least 6 characters.",
   },
   mismatch: {
-    tone: "border-amber-200 bg-amber-50 text-amber-900",
+    tone: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300",
     text: "Password and confirmation must match.",
   },
   photo: {
-    tone: "border-amber-200 bg-amber-50 text-amber-900",
+    tone: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300",
     text: "Upload a JPG, PNG, or WebP profile picture under 5 MB.",
   },
   "photo-upload": {
-    tone: "border-red-200 bg-red-50 text-red-700",
+    tone: "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300",
     text: "The account was created and is waiting for approval, but the profile picture could not be uploaded. Try a smaller image or ask the admin to check storage setup.",
   },
   error: {
-    tone: "border-red-200 bg-red-50 text-red-700",
+    tone: "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300",
     text: "Account creation failed. Please try again.",
   },
   exists: {
-    tone: "border-amber-200 bg-amber-50 text-amber-900",
+    tone: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300",
     text: "This email already has an account. Sign in with that email instead.",
   },
   "rate-limit": {
-    tone: "border-amber-200 bg-amber-50 text-amber-900",
+    tone: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300",
     text: "Signup is temporarily rate limited. Try again in a few minutes.",
   },
   created: {
-    tone: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    tone: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
     text: "Account created. Sign in with the email and password you just used.",
   },
   pending: {
-    tone: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    tone: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
     text: "Account created. Please wait for your department admin to approve it before you can log in.",
   },
   setup: {
-    tone: "border-amber-200 bg-amber-50 text-amber-900",
+    tone: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300",
     text: "Account created, but profile setup is not ready. Ask the admin to finish the database setup.",
   },
   "check-email": {
-    tone: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    tone: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
     text: "Check your email to confirm the account, then sign in.",
   },
 };
@@ -91,7 +91,7 @@ function Field({
 }) {
   return (
     <label className="block space-y-2">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
+      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</span>
       {children}
     </label>
   );
@@ -178,19 +178,19 @@ export function SignupModal({
 
   return (
     <>
-      <div className="rounded-3xl border border-white/80 bg-white/90 p-6 shadow-[0_20px_70px_rgba(15,23,42,0.10)] backdrop-blur sm:p-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+      <div className="rounded-3xl border border-white/80 bg-white/90 p-6 shadow-[0_20px_70px_rgba(15,23,42,0.10)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/80 sm:p-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
           Staff Access
         </p>
-        <h2 className="mt-2 text-3xl font-semibold tracking-tight">Need an account?</h2>
-        <p className="mt-3 text-sm leading-6 text-slate-600">
+        <h2 className="mt-2 text-3xl font-semibold tracking-tight dark:text-white">Need an account?</h2>
+        <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-400">
           Create a staff profile, then wait for your department admin to approve the account before first login.
         </p>
         <SignupMessage className="mt-4" signupState={signupState} />
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          className="mt-6 min-h-12 w-full rounded-2xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-800"
+          className="mt-6 min-h-12 w-full rounded-2xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-800 dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200"
         >
           Sign up
         </button>
@@ -209,20 +209,20 @@ export function SignupModal({
             className="absolute inset-0 h-full w-full cursor-default"
             onClick={() => setIsOpen(false)}
           />
-          <div className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-t-3xl border border-white/70 bg-white shadow-[0_30px_100px_rgba(15,23,42,0.30)] sm:max-h-[calc(100vh-2.5rem)] sm:rounded-3xl">
-            <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white/95 px-6 py-5 backdrop-blur">
+          <div className="relative max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-t-3xl border border-white/70 bg-white shadow-[0_30px_100px_rgba(15,23,42,0.30)] dark:border-slate-800 dark:bg-slate-950 sm:max-h-[calc(100vh-2.5rem)] sm:rounded-3xl">
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white/95 px-6 py-5 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
                   Sign up
                 </p>
-                <h2 id={titleId} className="mt-2 text-2xl font-semibold text-slate-950">
+                <h2 id={titleId} className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">
                   Staff account details
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="rounded-2xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:border-slate-950 hover:text-slate-950"
+                className="rounded-2xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:border-slate-950 hover:text-slate-950 dark:border-slate-700 dark:text-slate-200 dark:hover:border-cyan-400 dark:hover:text-cyan-300"
               >
                 Close
               </button>
@@ -231,8 +231,8 @@ export function SignupModal({
             <form action={action} className="space-y-6 px-6 py-6">
               <SignupMessage signupState={signupState} />
 
-              <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center">
-                <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-500">
+              <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/70 sm:flex-row sm:items-center">
+                <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400">
                   {profileImagePreview ? (
                     // Blob previews cannot use next/image because they are browser-created object URLs.
                     // eslint-disable-next-line @next/next/no-img-element
@@ -246,15 +246,15 @@ export function SignupModal({
                   )}
                 </div>
                 <div className="min-w-0 flex-1 space-y-2">
-                  <span className="text-sm font-medium text-slate-700">Profile Picture</span>
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Profile Picture</span>
                   <input
                     type="file"
                     name="profileImage"
                     accept="image/jpeg,image/png,image/webp"
                     onChange={handleProfileImageChange}
-                    className="block w-full cursor-pointer rounded-2xl border border-slate-200 bg-white text-sm text-slate-700 file:mr-4 file:border-0 file:bg-slate-950 file:px-4 file:py-3 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-800"
+                    className="block w-full cursor-pointer rounded-2xl border border-slate-200 bg-white text-sm text-slate-700 file:mr-4 file:border-0 file:bg-slate-950 file:px-4 file:py-3 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:file:bg-cyan-300 dark:file:text-slate-950 dark:hover:file:bg-cyan-200"
                   />
-                  <p className="text-xs leading-5 text-slate-500">
+                  <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">
                     JPG, PNG, or WebP up to 5 MB.
                   </p>
                 </div>
@@ -486,17 +486,17 @@ export function SignupModal({
                 </Field>
               </section>
 
-              <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
+              <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 dark:border-slate-800 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
-                  className="min-h-12 rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-medium text-slate-700 hover:border-slate-950 hover:text-slate-950"
+                  className="min-h-12 rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-medium text-slate-700 hover:border-slate-950 hover:text-slate-950 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-cyan-400 dark:hover:text-cyan-300"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="min-h-12 rounded-2xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-800"
+                  className="min-h-12 rounded-2xl bg-blue-700 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-800 dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200"
                 >
                   Create account
                 </button>
