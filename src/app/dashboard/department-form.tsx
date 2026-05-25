@@ -9,6 +9,7 @@ type DepartmentFormProps = {
 export function DepartmentForm({ action, departmentToEdit, departmentAdmin = null }: DepartmentFormProps) {
   const isEditMode = Boolean(departmentToEdit);
   const hasAssignedAdmin = Boolean(departmentAdmin);
+  const assignedAdmin = departmentAdmin;
 
   return (
     <form action={action} className="space-y-6">
@@ -39,10 +40,10 @@ export function DepartmentForm({ action, departmentToEdit, departmentAdmin = nul
         </div>
 
         {isEditMode ? (
-          hasAssignedAdmin ? (
+          assignedAdmin ? (
             <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
-              Current admin: <span className="font-semibold">{departmentAdmin.fullName}</span>
-              {departmentAdmin.email ? ` (${departmentAdmin.email})` : ""}
+              Current admin: <span className="font-semibold">{assignedAdmin.fullName}</span>
+              {assignedAdmin.email ? ` (${assignedAdmin.email})` : ""}
             </div>
           ) : (
             <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
@@ -59,7 +60,7 @@ export function DepartmentForm({ action, departmentToEdit, departmentAdmin = nul
               required
               defaultValue={departmentAdmin?.firstName ?? ""}
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-cyan-400 dark:focus:ring-cyan-950"
-              placeholder={hasAssignedAdmin ? departmentAdmin.firstName : "Jane"}
+              placeholder={assignedAdmin?.firstName ?? "Jane"}
             />
           </label>
 
@@ -70,7 +71,7 @@ export function DepartmentForm({ action, departmentToEdit, departmentAdmin = nul
               required
               defaultValue={departmentAdmin?.lastName ?? ""}
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-cyan-400 dark:focus:ring-cyan-950"
-              placeholder={hasAssignedAdmin ? departmentAdmin.lastName : "Doe"}
+              placeholder={assignedAdmin?.lastName ?? "Doe"}
             />
           </label>
         </div>
@@ -81,7 +82,7 @@ export function DepartmentForm({ action, departmentToEdit, departmentAdmin = nul
             name="adminMiddleName"
             defaultValue={departmentAdmin?.middleName ?? ""}
             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-cyan-400 dark:focus:ring-cyan-950"
-            placeholder={hasAssignedAdmin ? departmentAdmin.middleName || "Middle name" : "Marie"}
+            placeholder={assignedAdmin?.middleName || "Marie"}
           />
         </label>
 
@@ -93,7 +94,7 @@ export function DepartmentForm({ action, departmentToEdit, departmentAdmin = nul
             required
             defaultValue={departmentAdmin?.email ?? ""}
             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-cyan-400 dark:focus:ring-cyan-950"
-            placeholder={hasAssignedAdmin ? departmentAdmin.email : "jane@example.com"}
+            placeholder={assignedAdmin?.email ?? "jane@example.com"}
           />
         </label>
 
@@ -104,7 +105,7 @@ export function DepartmentForm({ action, departmentToEdit, departmentAdmin = nul
             required
             defaultValue={departmentAdmin?.phone ?? ""}
             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-cyan-400 dark:focus:ring-cyan-950"
-            placeholder={hasAssignedAdmin ? departmentAdmin.phone || "Phone number" : "0917 555 1234"}
+            placeholder={assignedAdmin?.phone || "0917 555 1234"}
           />
         </label>
 

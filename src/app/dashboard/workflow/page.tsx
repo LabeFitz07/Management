@@ -28,6 +28,7 @@ type DashboardWorkflowPageProps = {
     edit?: string;
     status?: string;
     upload?: string;
+    error?: string;
   }>;
 };
 
