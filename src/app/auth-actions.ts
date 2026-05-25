@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { getSupabaseAdminClient } from "@/lib/supabase-admin";
 import { getSupabaseServerClient } from "@/lib/supabase-server";
+import { upsertStaffRegistrationRequest } from "@/lib/registration-store";
 import {
   getProfileImageFile,
   uploadProfileImage,
@@ -154,12 +155,13 @@ async function upsertUserProfile(
   adminSupabase: AdminSupabaseClient,
   userId: string,
   input: SignupInput,
+  isActive: boolean,
 ) {
   const basePayload = {
     user_id: userId,
     email: input.email,
     full_name: input.fullName,
-    is_active: true,
+    is_active: isActive,
   };
 
   const { error } = await adminSupabase.from("app_user_profiles").upsert({
@@ -237,11 +239,12 @@ async function getOrCreateDepartmentId(adminSupabase: AdminSupabaseClient, name:
   return retryRow.id;
 }
 
-async function getOrCreateJobRoleId(adminSupabase: AdminSupabaseClient, title: string) {
+async function getOrCreateJobRoleId(adminSupabase: AdminSupabaseClient, title: string, departmentId: string) {
   const { data: existingRow, error: existingError } = await adminSupabase
     .from("job_roles")
     .select("id")
     .eq("title", title)
+    .eq("department_id", departmentId)
     .maybeSingle<{ id: string }>();
 
   if (existingError) {
@@ -254,7 +257,7 @@ async function getOrCreateJobRoleId(adminSupabase: AdminSupabaseClient, title: s
 
   const { data, error } = await adminSupabase
     .from("job_roles")
-    .insert({ title })
+    .insert({ title, department_id: departmentId })
     .select("id")
     .single<{ id: string }>();
 
@@ -266,6 +269,7 @@ async function getOrCreateJobRoleId(adminSupabase: AdminSupabaseClient, title: s
     .from("job_roles")
     .select("id")
     .eq("title", title)
+    .eq("department_id", departmentId)
     .maybeSingle<{ id: string }>();
 
   if (retryError || !retryRow) {
@@ -313,7 +317,7 @@ async function createStaffMemberProfile(adminSupabase: AdminSupabaseClient, inpu
   }
 
   const departmentId = await getOrCreateDepartmentId(adminSupabase, input.department);
-  const jobRoleId = await getOrCreateJobRoleId(adminSupabase, input.jobTitle);
+  const jobRoleId = await getOrCreateJobRoleId(adminSupabase, input.jobTitle, departmentId);
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const { error } = await adminSupabase.from("staff_members").insert({
@@ -368,13 +372,34 @@ export async function login(formData: FormData) {
   }
 
   const supabase = await getSupabaseServerClient();
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
 
   if (error) {
     redirect("/?error=invalid");
+  }
+
+  if (!data.user?.id) {
+    await supabase.auth.signOut();
+    redirect("/?error=invalid");
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("app_user_profiles")
+    .select("is_active")
+    .eq("user_id", data.user.id)
+    .maybeSingle<{ is_active: boolean }>();
+
+  if (profileError) {
+    await supabase.auth.signOut();
+    redirect("/?error=session");
+  }
+
+  if (!profile?.is_active) {
+    await supabase.auth.signOut();
+    redirect("/?error=pending");
   }
 
   redirect("/portal");
@@ -493,7 +518,7 @@ export async function signUp(formData: FormData) {
   }
 
   try {
-    await upsertUserProfile(adminSupabase, createdUser.user.id, input);
+    await upsertUserProfile(adminSupabase, createdUser.user.id, input, false);
   } catch {
     redirect("/?signup=setup");
   }
@@ -508,12 +533,32 @@ export async function signUp(formData: FormData) {
   }
 
   try {
-    await createStaffMemberProfile(adminSupabase, input);
+    await createStaffMemberProfile(adminSupabase, {
+      ...input,
+      profileImageUrl: input.profileImageUrl,
+    });
+    const { error: pendingStatusError } = await adminSupabase
+      .from("staff_members")
+      .update({ status: "Inactive" })
+      .eq("email", input.email);
+
+    if (pendingStatusError) {
+      throw new Error(pendingStatusError.message);
+    }
+
+    await upsertStaffRegistrationRequest({
+      fullName: input.fullName,
+      email: input.email,
+      phone: input.phone,
+      department: input.department,
+      role: input.jobTitle,
+      startDate: input.startDate,
+    });
   } catch {
     redirect("/?signup=setup");
   }
 
-  redirect(didProfileImageUploadFail ? "/?signup=photo-upload" : "/?signup=created");
+  redirect(didProfileImageUploadFail ? "/?signup=photo-upload" : "/?signup=pending");
 }
 
 export async function logout() {

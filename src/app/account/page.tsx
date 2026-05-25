@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentAccountProfile } from "@/lib/account-store";
+import { canAccessDashboard, getRoleDisplayLabel } from "@/lib/roles";
 import { logout } from "../auth-actions";
 import { AccountForm } from "./account-form";
 import { updateAccount } from "./actions";
@@ -47,19 +48,11 @@ const STATUS_MESSAGES: Record<string, { className: string; text: string }> = {
 };
 
 function getReturnHref(roles: string[]) {
-  return roles.includes("admin") || roles.includes("hr") ? "/dashboard" : "/staff";
+  return canAccessDashboard(roles) ? "/dashboard" : "/staff";
 }
 
 function getRoleLabel(roles: string[]) {
-  if (roles.includes("admin")) {
-    return "Admin account";
-  }
-
-  if (roles.includes("hr")) {
-    return "HR account";
-  }
-
-  return "Staff account";
+  return `${getRoleDisplayLabel(roles)} account`;
 }
 
 export default async function AccountPage({ searchParams }: AccountPageProps) {

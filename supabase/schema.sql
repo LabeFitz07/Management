@@ -9,8 +9,18 @@ create table if not exists public.departments (
 create table if not exists public.job_roles (
   id uuid primary key default gen_random_uuid(),
   title text not null unique,
+  department_id uuid references public.departments (id) on delete cascade,
   created_at timestamptz not null default now()
 );
+
+alter table public.job_roles
+add column if not exists department_id uuid references public.departments (id) on delete cascade;
+
+alter table public.job_roles
+drop constraint if exists job_roles_title_key;
+
+create unique index if not exists job_roles_department_title_idx
+on public.job_roles (department_id, title);
 
 create table if not exists public.app_roles (
   id uuid primary key default gen_random_uuid(),
@@ -140,6 +150,14 @@ create table if not exists public.user_role_assignments (
   role_id uuid not null references public.app_roles (id) on delete cascade,
   created_at timestamptz not null default now(),
   primary key (user_id, role_id)
+);
+
+create table if not exists public.department_admin_assignments (
+  department_id uuid not null references public.departments (id) on delete cascade,
+  user_id uuid not null references public.app_user_profiles (user_id) on delete cascade,
+  is_primary boolean not null default true,
+  created_at timestamptz not null default now(),
+  primary key (department_id, user_id)
 );
 
 create table if not exists public.staff_members (
@@ -298,6 +316,10 @@ on public.task_reference_files (task_id, created_at desc);
 
 create index if not exists notifications_recipient_read_idx
 on public.notifications (recipient_user_id, is_read, created_at desc);
+
+create unique index if not exists department_admin_assignments_primary_department_idx
+on public.department_admin_assignments (department_id)
+where is_primary = true;
 
 create or replace function public.set_updated_at()
 returns trigger
@@ -480,7 +502,7 @@ as $$
     from public.tasks t
     where t.id = target_task_id
       and (
-        public.has_app_role(array['admin', 'hr'])
+        public.has_app_role(array['superadmin', 'admin', 'hr'])
         or t.user_id = auth.uid()
         or t.created_by = auth.uid()
         or t.reviewer_user_id = auth.uid()
@@ -500,7 +522,7 @@ as $$
     from public.tasks t
     where t.id = target_task_id
       and (
-        public.has_app_role(array['admin', 'hr'])
+        public.has_app_role(array['superadmin', 'admin', 'hr'])
         or t.created_by = auth.uid()
         or t.reviewer_user_id = auth.uid()
       )
@@ -512,6 +534,7 @@ alter table public.job_roles enable row level security;
 alter table public.app_roles enable row level security;
 alter table public.app_user_profiles enable row level security;
 alter table public.user_role_assignments enable row level security;
+alter table public.department_admin_assignments enable row level security;
 alter table public.staff_members enable row level security;
 alter table public.staff_registration_requests enable row level security;
 alter table public.tasks enable row level security;
@@ -525,28 +548,52 @@ create policy "Authorized users can view departments"
 on public.departments
 for select
 to authenticated
-using (public.has_app_role(array['admin', 'hr']));
+using (
+  public.has_app_role(array['superadmin', 'admin', 'hr'])
+  or exists (
+    select 1
+    from public.department_admin_assignments daa
+    where daa.department_id = public.departments.id
+      and daa.user_id = auth.uid()
+  )
+);
 
 drop policy if exists "Authorized users can insert departments" on public.departments;
 create policy "Authorized users can insert departments"
 on public.departments
 for insert
 to authenticated
-with check (public.has_app_role(array['admin', 'hr']));
+with check (public.has_app_role(array['superadmin', 'admin', 'hr']));
 
 drop policy if exists "Authorized users can view job roles" on public.job_roles;
 create policy "Authorized users can view job roles"
 on public.job_roles
 for select
 to authenticated
-using (public.has_app_role(array['admin', 'hr']));
+using (
+  public.has_app_role(array['superadmin', 'admin', 'hr'])
+  or exists (
+    select 1
+    from public.department_admin_assignments daa
+    where daa.department_id = public.job_roles.department_id
+      and daa.user_id = auth.uid()
+  )
+);
 
 drop policy if exists "Authorized users can insert job roles" on public.job_roles;
 create policy "Authorized users can insert job roles"
 on public.job_roles
 for insert
 to authenticated
-with check (public.has_app_role(array['admin', 'hr']));
+with check (
+  public.has_app_role(array['superadmin', 'admin', 'hr'])
+  or exists (
+    select 1
+    from public.department_admin_assignments daa
+    where daa.department_id = public.job_roles.department_id
+      and daa.user_id = auth.uid()
+  )
+);
 
 drop policy if exists "Users can view their own profile" on public.app_user_profiles;
 create policy "Users can view their own profile"
@@ -555,7 +602,7 @@ for select
 to authenticated
 using (
   user_id = auth.uid()
-  or public.has_app_role(array['admin', 'hr'])
+  or public.has_app_role(array['superadmin', 'admin', 'hr'])
 );
 
 drop policy if exists "Users can update their own profile" on public.app_user_profiles;
@@ -565,11 +612,11 @@ for update
 to authenticated
 using (
   user_id = auth.uid()
-  or public.has_app_role(array['admin', 'hr'])
+  or public.has_app_role(array['superadmin', 'admin', 'hr'])
 )
 with check (
   user_id = auth.uid()
-  or public.has_app_role(array['admin', 'hr'])
+  or public.has_app_role(array['superadmin', 'admin', 'hr'])
 );
 
 drop policy if exists "Users can view role assignments" on public.user_role_assignments;
@@ -579,8 +626,26 @@ for select
 to authenticated
 using (
   user_id = auth.uid()
-  or public.has_app_role(array['admin', 'hr'])
+  or public.has_app_role(array['superadmin', 'admin', 'hr'])
 );
+
+drop policy if exists "Users can view department admin assignments" on public.department_admin_assignments;
+create policy "Users can view department admin assignments"
+on public.department_admin_assignments
+for select
+to authenticated
+using (
+  user_id = auth.uid()
+  or public.has_app_role(array['superadmin', 'admin', 'hr'])
+);
+
+drop policy if exists "Authorized users can manage department admin assignments" on public.department_admin_assignments;
+create policy "Authorized users can manage department admin assignments"
+on public.department_admin_assignments
+for all
+to authenticated
+using (public.has_app_role(array['superadmin', 'admin', 'hr']))
+with check (public.has_app_role(array['superadmin', 'admin', 'hr']));
 
 drop policy if exists "Users can view app roles" on public.app_roles;
 create policy "Users can view app roles"
@@ -594,29 +659,29 @@ create policy "Authorized users can view staff members"
 on public.staff_members
 for select
 to authenticated
-using (public.has_app_role(array['admin', 'hr']));
+using (public.has_app_role(array['superadmin', 'admin', 'hr']));
 
 drop policy if exists "Authorized users can insert staff members" on public.staff_members;
 create policy "Authorized users can insert staff members"
 on public.staff_members
 for insert
 to authenticated
-with check (public.has_app_role(array['admin', 'hr']));
+with check (public.has_app_role(array['superadmin', 'admin', 'hr']));
 
 drop policy if exists "Authorized users can update staff members" on public.staff_members;
 create policy "Authorized users can update staff members"
 on public.staff_members
 for update
 to authenticated
-using (public.has_app_role(array['admin', 'hr']))
-with check (public.has_app_role(array['admin', 'hr']));
+using (public.has_app_role(array['superadmin', 'admin', 'hr']))
+with check (public.has_app_role(array['superadmin', 'admin', 'hr']));
 
 drop policy if exists "Authorized users can delete staff members" on public.staff_members;
 create policy "Authorized users can delete staff members"
 on public.staff_members
 for delete
 to authenticated
-using (public.has_app_role(array['admin', 'hr']));
+using (public.has_app_role(array['superadmin', 'admin', 'hr']));
 
 drop policy if exists "Authorized users or owner can view staff members" on public.staff_members;
 create policy "Authorized users or owner can view staff members"
@@ -624,7 +689,7 @@ on public.staff_members
 for select
 to authenticated
 using (
-  public.has_app_role(array['admin', 'hr'])
+  public.has_app_role(array['superadmin', 'admin', 'hr'])
   or lower(email) = lower(coalesce(auth.jwt() ->> 'email', ''))
 );
 
@@ -640,15 +705,42 @@ create policy "Admins can view registration requests"
 on public.staff_registration_requests
 for select
 to authenticated
-using (public.has_app_role(array['admin', 'hr']));
+using (
+  public.has_app_role(array['superadmin', 'admin', 'hr'])
+  or exists (
+    select 1
+    from public.department_admin_assignments daa
+    join public.departments d on d.id = daa.department_id
+    where daa.user_id = auth.uid()
+      and lower(d.name) = lower(public.staff_registration_requests.department)
+  )
+);
 
 drop policy if exists "Admins can update registration requests" on public.staff_registration_requests;
 create policy "Admins can update registration requests"
 on public.staff_registration_requests
 for update
 to authenticated
-using (public.has_app_role(array['admin', 'hr']))
-with check (public.has_app_role(array['admin', 'hr']));
+using (
+  public.has_app_role(array['superadmin', 'admin', 'hr'])
+  or exists (
+    select 1
+    from public.department_admin_assignments daa
+    join public.departments d on d.id = daa.department_id
+    where daa.user_id = auth.uid()
+      and lower(d.name) = lower(public.staff_registration_requests.department)
+  )
+)
+with check (
+  public.has_app_role(array['superadmin', 'admin', 'hr'])
+  or exists (
+    select 1
+    from public.department_admin_assignments daa
+    join public.departments d on d.id = daa.department_id
+    where daa.user_id = auth.uid()
+      and lower(d.name) = lower(public.staff_registration_requests.department)
+  )
+);
 
 drop policy if exists "Users can view their own tasks" on public.tasks;
 drop policy if exists "Admins can view all tasks" on public.tasks;
@@ -668,7 +760,7 @@ on public.tasks
 for insert
 to authenticated
 with check (
-  public.has_app_role(array['admin', 'hr'])
+  public.has_app_role(array['superadmin', 'admin', 'hr'])
   and created_by = auth.uid()
 );
 
@@ -692,7 +784,7 @@ on public.tasks
 for delete
 to authenticated
 using (
-  public.has_app_role(array['admin', 'hr'])
+  public.has_app_role(array['superadmin', 'admin', 'hr'])
   or created_by = auth.uid()
 );
 
@@ -817,13 +909,54 @@ with check (
   )
 );
 
-insert into public.app_roles (code, name)
-values
-  ('admin', 'Administrator'),
-  ('hr', 'Human Resources'),
-  ('staff', 'Staff Member')
-on conflict (code) do update
-set name = excluded.name;
+do $$
+begin
+  -- Ensure 'superadmin' role exists with correct code/name
+  if exists (select 1 from public.app_roles where code = 'superadmin') then
+    update public.app_roles set name = 'Super Admin' where code = 'superadmin';
+  elsif exists (select 1 from public.app_roles where name = 'Super Admin') then
+    update public.app_roles set code = 'superadmin' where name = 'Super Admin';
+  else
+    insert into public.app_roles (code, name) values ('superadmin', 'Super Admin');
+  end if;
+
+  -- Ensure 'admin' role
+  if exists (select 1 from public.app_roles where code = 'admin') then
+    update public.app_roles set name = 'Administrator' where code = 'admin';
+  elsif exists (select 1 from public.app_roles where name = 'Administrator') then
+    update public.app_roles set code = 'admin' where name = 'Administrator';
+  else
+    insert into public.app_roles (code, name) values ('admin', 'Administrator');
+  end if;
+
+  -- Ensure 'hr' role
+  if exists (select 1 from public.app_roles where code = 'hr') then
+    update public.app_roles set name = 'Human Resources' where code = 'hr';
+  elsif exists (select 1 from public.app_roles where name = 'Human Resources') then
+    update public.app_roles set code = 'hr' where name = 'Human Resources';
+  else
+    insert into public.app_roles (code, name) values ('hr', 'Human Resources');
+  end if;
+
+  -- Ensure 'department-admin' role
+  if exists (select 1 from public.app_roles where code = 'department-admin') then
+    update public.app_roles set name = 'Department Admin' where code = 'department-admin';
+  elsif exists (select 1 from public.app_roles where name = 'Department Admin') then
+    update public.app_roles set code = 'department-admin' where name = 'Department Admin';
+  else
+    insert into public.app_roles (code, name) values ('department-admin', 'Department Admin');
+  end if;
+
+  -- Ensure 'staff' role
+  if exists (select 1 from public.app_roles where code = 'staff') then
+    update public.app_roles set name = 'Staff Member' where code = 'staff';
+  elsif exists (select 1 from public.app_roles where name = 'Staff Member') then
+    update public.app_roles set code = 'staff' where name = 'Staff Member';
+  else
+    insert into public.app_roles (code, name) values ('staff', 'Staff Member');
+  end if;
+end;
+$$;
 
 insert into public.departments (name)
 values
@@ -832,12 +965,21 @@ values
   ('Human Resources')
 on conflict (name) do nothing;
 
-insert into public.job_roles (title)
+insert into public.job_roles (title, department_id)
 values
-  ('Operations Supervisor'),
-  ('Payroll Specialist'),
-  ('Talent Coordinator')
-on conflict (title) do nothing;
+  (
+    'Operations Supervisor',
+    (select id from public.departments where name = 'Operations')
+  ),
+  (
+    'Payroll Specialist',
+    (select id from public.departments where name = 'Finance')
+  ),
+  (
+    'Talent Coordinator',
+    (select id from public.departments where name = 'Human Resources')
+  )
+on conflict (department_id, title) do nothing;
 
 insert into public.staff_members (
   employee_id,

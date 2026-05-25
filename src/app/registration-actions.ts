@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentUserAccessProfile } from "@/lib/authz";
+import { getDepartments, getManagedDepartmentIdsForUser } from "@/lib/department-store";
+import { isDepartmentAdminRole, isManagerRole } from "@/lib/roles";
 import {
   approveStaffRegistrationRequest,
   isMissingRegistrationTableError,
@@ -26,10 +28,12 @@ async function assertCanApproveStaff() {
 
   if (
     !accessProfile?.isActive ||
-    (!accessProfile.roles.includes("admin") && !accessProfile.roles.includes("hr"))
+    (!isManagerRole(accessProfile.roles) && !isDepartmentAdminRole(accessProfile.roles))
   ) {
     throw new Error("Unauthorized");
   }
+
+  return accessProfile;
 }
 
 export async function registerStaffRequest(formData: FormData) {
@@ -55,7 +59,20 @@ export async function approveStaffRequest(formData: FormData) {
     throw new Error("Registration request ID is required.");
   }
 
-  await assertCanApproveStaff();
-  await approveStaffRegistrationRequest(requestId);
+  const accessProfile = await assertCanApproveStaff();
+  const managedDepartmentNames =
+    accessProfile && isDepartmentAdminRole(accessProfile.roles)
+      ? await getManagedDepartmentIdsForUser(accessProfile.userId)
+          .then((departmentIds) => getDepartments(departmentIds))
+          .then((departments) => departments.map((department) => department.name))
+      : undefined;
+
+  if (accessProfile && isDepartmentAdminRole(accessProfile.roles) && (!managedDepartmentNames || managedDepartmentNames.length === 0)) {
+    throw new Error("Unauthorized");
+  }
+
+  await approveStaffRegistrationRequest(requestId, { managedDepartmentNames });
   revalidatePath("/dashboard");
+  revalidatePath("/dashboard/staff");
+  redirect("/dashboard/staff?staff=approved");
 }

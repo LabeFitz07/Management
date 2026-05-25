@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import type { JobRoleRecord } from "@/lib/job-role-store";
 
 type SignUpAction = (formData: FormData) => void | Promise<void>;
 
 type SignupModalProps = {
   action: SignUpAction;
   signupState?: string;
+  departmentOptions: string[];
+  jobRoles: JobRoleRecord[];
 };
 
 const inputClassName =
@@ -27,7 +30,7 @@ const signupMessages: Record<string, { tone: string; text: string }> = {
   },
   "photo-upload": {
     tone: "border-red-200 bg-red-50 text-red-700",
-    text: "The account was created, but the profile picture could not be uploaded. Try a smaller image or ask the admin to check storage setup.",
+    text: "The account was created and is waiting for approval, but the profile picture could not be uploaded. Try a smaller image or ask the admin to check storage setup.",
   },
   error: {
     tone: "border-red-200 bg-red-50 text-red-700",
@@ -44,6 +47,10 @@ const signupMessages: Record<string, { tone: string; text: string }> = {
   created: {
     tone: "border-emerald-200 bg-emerald-50 text-emerald-800",
     text: "Account created. Sign in with the email and password you just used.",
+  },
+  pending: {
+    tone: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    text: "Account created. Please wait for your department admin to approve it before you can log in.",
   },
   setup: {
     tone: "border-amber-200 bg-amber-50 text-amber-900",
@@ -90,10 +97,45 @@ function Field({
   );
 }
 
-export function SignupModal({ action, signupState }: SignupModalProps) {
+const fallbackDepartments = ["Operations", "Finance", "Human Resources"];
+const fallbackDepartmentRoles: Record<string, string[]> = {
+  Operations: ["Operations Supervisor"],
+  Finance: ["Payroll Specialist"],
+  "Human Resources": ["Talent Coordinator"],
+};
+
+function getSelectOptions(options: string[], fallbackOptions: string[]) {
+  const values = [...options, ...fallbackOptions].map((value) => value.trim()).filter(Boolean);
+  return Array.from(new Set(values)).sort((left, right) => left.localeCompare(right));
+}
+
+function normalizeValue(value: string) {
+  return value.trim().toLowerCase();
+}
+
+export function SignupModal({
+  action,
+  signupState,
+  departmentOptions,
+  jobRoles,
+}: SignupModalProps) {
   const [isOpen, setIsOpen] = useState(Boolean(signupState));
   const [profileImagePreview, setProfileImagePreview] = useState("");
+  const [selectedDepartment, setSelectedDepartment] = useState("");
+  const [selectedJobTitle, setSelectedJobTitle] = useState("");
   const titleId = useId();
+  const departmentSelectOptions = getSelectOptions(departmentOptions, fallbackDepartments);
+  const selectedDepartmentFallbackRoles =
+    fallbackDepartmentRoles[selectedDepartment] ?? [];
+  const jobTitleSelectOptions = getSelectOptions(
+    jobRoles
+      .filter((role) => normalizeValue(role.departmentName) === normalizeValue(selectedDepartment))
+      .map((role) => role.title),
+    selectedDepartmentFallbackRoles,
+  );
+  const currentJobTitleValue = jobTitleSelectOptions.includes(selectedJobTitle)
+    ? selectedJobTitle
+    : "";
 
   useEffect(() => {
     if (!isOpen) {
@@ -128,6 +170,12 @@ export function SignupModal({ action, signupState }: SignupModalProps) {
     setProfileImagePreview(file ? URL.createObjectURL(file) : "");
   }
 
+  function handleDepartmentChange(event: React.ChangeEvent<HTMLSelectElement>) {
+    const nextDepartment = event.target.value;
+    setSelectedDepartment(nextDepartment);
+    setSelectedJobTitle("");
+  }
+
   return (
     <>
       <div className="rounded-3xl border border-white/80 bg-white/90 p-6 shadow-[0_20px_70px_rgba(15,23,42,0.10)] backdrop-blur sm:p-8">
@@ -136,7 +184,7 @@ export function SignupModal({ action, signupState }: SignupModalProps) {
         </p>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight">Need an account?</h2>
         <p className="mt-3 text-sm leading-6 text-slate-600">
-          Create a staff profile so an admin can assign tasks to your workspace.
+          Create a staff profile, then wait for your department admin to approve the account before first login.
         </p>
         <SignupMessage className="mt-4" signupState={signupState} />
         <button
@@ -299,25 +347,44 @@ export function SignupModal({ action, signupState }: SignupModalProps) {
                 </Field>
 
                 <Field label="Department">
-                  <input
+                  <select
                     name="department"
-                    autoComplete="organization"
                     required
                     className={inputClassName}
-                    placeholder="Operations"
-                  />
+                    value={selectedDepartment}
+                    onChange={handleDepartmentChange}
+                  >
+                    <option value="" disabled>
+                      Select department
+                    </option>
+                    {departmentSelectOptions.map((department) => (
+                      <option key={department} value={department}>
+                        {department}
+                      </option>
+                    ))}
+                  </select>
                 </Field>
               </section>
 
               <section className="grid gap-4 md:grid-cols-2">
                 <Field label="Job Title">
-                  <input
+                  <select
                     name="jobTitle"
-                    autoComplete="organization-title"
                     required
                     className={inputClassName}
-                    placeholder="Task Coordinator"
-                  />
+                    value={currentJobTitleValue}
+                    onChange={(event) => setSelectedJobTitle(event.target.value)}
+                    disabled={!selectedDepartment}
+                  >
+                    <option value="" disabled>
+                      {selectedDepartment ? "Select job title" : "Select department first"}
+                    </option>
+                    {jobTitleSelectOptions.map((jobTitle) => (
+                      <option key={jobTitle} value={jobTitle}>
+                        {jobTitle}
+                      </option>
+                    ))}
+                  </select>
                 </Field>
 
                 <Field label="Start Date">

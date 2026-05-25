@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSupabaseServerClient } from "@/lib/supabase-server";
+import { getDepartments } from "@/lib/department-store";
+import { getPublicSignupJobRoles } from "@/lib/job-role-store";
 import { login, signUp } from "./auth-actions";
 import { SignupModal } from "./signup-modal";
 
@@ -24,7 +26,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const hasInvalidLogin = params.error === "invalid";
   const hasSessionError = params.error === "session";
   const hasUnauthorizedError = params.error === "unauthorized";
+  const hasPendingApprovalError = params.error === "pending";
   const signupState = params.signup;
+  const [departments, jobRoles] = await Promise.all([
+    getDepartments().catch(() => []),
+    getPublicSignupJobRoles().catch(() => []),
+  ]);
+  const departmentOptions = departments.map((department) => department.name);
 
   return (
     <main className="min-h-screen bg-[linear-gradient(135deg,_#f8fafc_0%,_#e0f2fe_48%,_#ecfdf5_100%)] px-4 py-8 text-slate-950 sm:px-6 lg:px-8">
@@ -137,6 +145,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 </p>
               ) : null}
 
+              {hasPendingApprovalError ? (
+                <p className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                  Your staff account is still waiting for department admin approval. You can log in after it is approved.
+                </p>
+              ) : null}
+
               <button
                 type="submit"
                 className="min-h-12 w-full rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800"
@@ -146,7 +160,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </form>
           </div>
 
-          <SignupModal action={signUp} signupState={signupState} />
+          <SignupModal
+            action={signUp}
+            signupState={signupState}
+            departmentOptions={departmentOptions}
+            jobRoles={jobRoles}
+          />
         </section>
       </div>
     </main>

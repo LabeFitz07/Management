@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUserAccessProfile } from "@/lib/authz";
+import { canAccessDashboard } from "@/lib/roles";
 import {
   MAX_TASK_SUBMISSION_FILE_BYTES,
   MAX_TASK_SUBMISSION_FILES,
@@ -230,7 +231,7 @@ export default async function StaffTaskDetailPage({
 
   const { taskId } = await params;
 
-  if (accessProfile.roles.includes("admin") || accessProfile.roles.includes("hr")) {
+  if (canAccessDashboard(accessProfile.roles)) {
     redirect(`/dashboard/tasks/${taskId}`);
   }
 

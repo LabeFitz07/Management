@@ -165,11 +165,12 @@ async function getOrCreateDepartmentId(adminSupabase: AdminSupabaseClient, name:
   return retryDepartment.id;
 }
 
-async function getOrCreateJobRoleId(adminSupabase: AdminSupabaseClient, title: string) {
+async function getOrCreateJobRoleId(adminSupabase: AdminSupabaseClient, title: string, departmentId: string) {
   const { data: existingJobRole, error: existingError } = await adminSupabase
     .from("job_roles")
     .select("id")
     .eq("title", title)
+    .eq("department_id", departmentId)
     .maybeSingle<{ id: string }>();
 
   if (existingError) {
@@ -182,7 +183,7 @@ async function getOrCreateJobRoleId(adminSupabase: AdminSupabaseClient, title: s
 
   const { data, error } = await adminSupabase
     .from("job_roles")
-    .insert({ title })
+    .insert({ title, department_id: departmentId })
     .select("id")
     .single<{ id: string }>();
 
@@ -194,6 +195,7 @@ async function getOrCreateJobRoleId(adminSupabase: AdminSupabaseClient, title: s
     .from("job_roles")
     .select("id")
     .eq("title", title)
+    .eq("department_id", departmentId)
     .maybeSingle<{ id: string }>();
 
   if (retryError || !retryJobRole) {
@@ -291,7 +293,7 @@ async function syncStaffMember(
   }
 
   const departmentId = await getOrCreateDepartmentId(adminSupabase, input.department);
-  const jobRoleId = await getOrCreateJobRoleId(adminSupabase, input.jobTitle);
+  const jobRoleId = await getOrCreateJobRoleId(adminSupabase, input.jobTitle, departmentId);
   const staffMemberId = await findStaffMemberId(adminSupabase, currentEmail, input.email);
   const payload = {
     full_name: input.fullName,

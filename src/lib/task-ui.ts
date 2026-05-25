@@ -7,6 +7,8 @@ export const TASK_STATUS_META: Record<
     shortLabel: string;
     description: string;
     columnClass: string;
+    headerClass: string;
+    accentClass: string;
     badgeClass: string;
   }
 > = {
@@ -14,35 +16,45 @@ export const TASK_STATUS_META: Record<
     label: "To Do",
     shortLabel: "Queued",
     description: "Ready to start",
-    columnClass: "border-slate-200 bg-slate-50",
+    columnClass: "border-slate-200 bg-white",
+    headerClass: "bg-slate-50",
+    accentClass: "bg-slate-400",
     badgeClass: "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200",
   },
   in_progress: {
     label: "In Progress",
     shortLabel: "Working",
     description: "Staff is actively working",
-    columnClass: "border-blue-200 bg-blue-50",
+    columnClass: "border-slate-200 bg-white",
+    headerClass: "bg-blue-50",
+    accentClass: "bg-blue-500",
     badgeClass: "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200",
   },
   submitted: {
     label: "Submitted",
     shortLabel: "Review",
     description: "Waiting for manager review",
-    columnClass: "border-amber-200 bg-amber-50",
+    columnClass: "border-slate-200 bg-white",
+    headerClass: "bg-amber-50",
+    accentClass: "bg-amber-500",
     badgeClass: "bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200",
   },
   changes_requested: {
     label: "Changes Requested",
     shortLabel: "Rework",
     description: "Reviewer asked for corrections",
-    columnClass: "border-rose-200 bg-rose-50",
+    columnClass: "border-slate-200 bg-white",
+    headerClass: "bg-rose-50",
+    accentClass: "bg-rose-500",
     badgeClass: "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200",
   },
   approved: {
     label: "Approved",
     shortLabel: "Done",
     description: "Work accepted and closed",
-    columnClass: "border-emerald-200 bg-emerald-50",
+    columnClass: "border-slate-200 bg-white",
+    headerClass: "bg-emerald-50",
+    accentClass: "bg-emerald-500",
     badgeClass: "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200",
   },
 };
@@ -69,21 +81,31 @@ export const TASK_PRIORITY_META: Record<
 };
 
 export function formatTaskDate(date: string) {
+  const d = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(d.getTime())) {
+    return "Invalid date";
+  }
+
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
-  }).format(new Date(`${date}T00:00:00`));
+  }).format(d);
 }
 
 export function formatTaskDateTime(dateTime: string) {
+  const d = new Date(dateTime);
+  if (Number.isNaN(d.getTime())) {
+    return "Invalid date";
+  }
+
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
-  }).format(new Date(dateTime));
+  }).format(d);
 }
 
 export function isTaskOverdue(task: Pick<Task, "dueDate" | "status">) {
@@ -91,9 +113,14 @@ export function isTaskOverdue(task: Pick<Task, "dueDate" | "status">) {
     return false;
   }
 
+  const due = new Date(`${task.dueDate}T00:00:00`);
+  if (Number.isNaN(due.getTime())) {
+    return false;
+  }
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return new Date(`${task.dueDate}T00:00:00`) < today;
+  return due < today;
 }
 
 export function isTaskDueToday(task: Pick<Task, "dueDate" | "status">) {
@@ -101,9 +128,14 @@ export function isTaskDueToday(task: Pick<Task, "dueDate" | "status">) {
     return false;
   }
 
+  const due = new Date(`${task.dueDate}T00:00:00`);
+  if (Number.isNaN(due.getTime())) {
+    return false;
+  }
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return new Date(`${task.dueDate}T00:00:00`).getTime() === today.getTime();
+  return due.getTime() === today.getTime();
 }
 
 export function getTaskDueLabel(task: Pick<Task, "dueDate" | "status">) {
@@ -152,7 +184,10 @@ export function getTaskWorkSortValue(task: Pick<Task, "status" | "priority" | "d
     low: 2,
   };
   const dueTime = task.dueDate
-    ? new Date(`${task.dueDate}T00:00:00`).getTime()
+    ? (function () {
+        const d = new Date(`${task.dueDate}T00:00:00`);
+        return Number.isNaN(d.getTime()) ? Number.MAX_SAFE_INTEGER : d.getTime();
+      })()
     : Number.MAX_SAFE_INTEGER;
 
   return (

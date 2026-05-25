@@ -5,6 +5,11 @@
   --foreground: #0f172a;
 }
 
+html.dark {
+  --background: #020617;
+  --foreground: #e2e8f0;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -25,6 +30,9 @@ body {
   color: var(--foreground);
   font-family: "Segoe UI", Arial, ui-sans-serif, system-ui, sans-serif;
   text-rendering: optimizeLegibility;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
 }
 
 a,
@@ -47,6 +55,11 @@ button:active {
 ::selection {
   background: #bfdbfe;
   color: #0f172a;
+}
+
+html.dark ::selection {
+  background: #155e75;
+  color: #ecfeff;
 }
 
 input,

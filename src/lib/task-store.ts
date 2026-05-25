@@ -1,4 +1,5 @@
 import { getSupabaseAdminClient } from "./supabase-admin";
+import { isDepartmentAdminRole, isManagerRole, STAFF_ROLE_CODE } from "./roles";
 import { getSupabaseServerClient } from "./supabase-server";
 import {
   createTaskSubmissionSignedUrl,
@@ -141,6 +142,7 @@ type UserDirectoryRow = {
   user_id: string;
   email: string;
   full_name: string;
+  department?: string | null;
   profile_image_url?: string | null;
   is_active: boolean;
   user_role_assignments: RoleAssignmentRow[];
@@ -150,6 +152,7 @@ type VisibleUser = {
   userId: string;
   email: string;
   fullName: string;
+  department: string;
   roles: string[];
 };
 
@@ -211,7 +214,7 @@ type TaskReferenceFileRow = {
 const TASK_SELECT =
   "id, user_id, created_by, reviewer_user_id, title, description, status, priority, due_date, submitted_at, approved_at, approved_by, created_at, updated_at";
 const PROFILE_SELECT =
-  "user_id, email, full_name, is_active, user_role_assignments(app_roles(code))";
+  "user_id, email, full_name, department, is_active, user_role_assignments(app_roles(code))";
 const SUBMISSION_SELECT =
   "id, task_id, submitted_by, version, submission_note, review_status, review_note, reviewed_by, submitted_at, reviewed_at";
 const SUBMISSION_FILE_SELECT =
@@ -250,6 +253,7 @@ function mapVisibleUser(row: UserDirectoryRow): VisibleUser | null {
     userId: row.user_id,
     email: row.email,
     fullName: row.full_name,
+    department: row.department ?? "",
     roles: getRoles(row),
   };
 }
@@ -434,12 +438,16 @@ function normalizeTaskReviewInput(input: TaskReviewInput) {
   };
 }
 
-async function getVisibleUsers(userIds?: string[]) {
+function normalizeDepartments(visibleDepartments?: string[]) {
+  return visibleDepartments?.map((department) => department.trim().toLowerCase()).filter(Boolean);
+}
+
+async function getVisibleUsers(userIds?: string[], visibleDepartments?: string[]) {
   if (userIds && userIds.length === 0) {
     return [] satisfies VisibleUser[];
   }
 
-  const supabase = await getSupabaseServerClient();
+  const supabase = getSupabaseAdminClient();
   let query = supabase
     .from("app_user_profiles")
     .select(PROFILE_SELECT)
@@ -455,7 +463,18 @@ async function getVisibleUsers(userIds?: string[]) {
     throw new Error(`Failed to fetch user directory: ${error.message}`);
   }
 
-  return data.map(mapVisibleUser).filter((user): user is VisibleUser => Boolean(user));
+  const normalizedDepartments = normalizeDepartments(visibleDepartments);
+
+  return data
+    .map(mapVisibleUser)
+    .filter((user): user is VisibleUser => Boolean(user))
+    .filter((user) => {
+      if (!normalizedDepartments || normalizedDepartments.length === 0) {
+        return true;
+      }
+
+      return normalizedDepartments.includes(user.department.trim().toLowerCase());
+    });
 }
 
 async function getUsersByTaskRows(taskRows: TaskRow[]) {
@@ -606,11 +625,11 @@ async function removeTaskReferenceFilesById(
   }
 }
 
-export async function getAssignableStaffUsers() {
-  const users = await getVisibleUsers();
+export async function getAssignableStaffUsers(visibleDepartments?: string[]) {
+  const users = await getVisibleUsers(undefined, visibleDepartments);
 
   return users
-    .filter((user) => user.roles.includes("staff"))
+    .filter((user) => user.roles.includes(STAFF_ROLE_CODE))
     .map((user) => ({
       userId: user.userId,
       email: user.email,
@@ -618,11 +637,14 @@ export async function getAssignableStaffUsers() {
     }));
 }
 
-export async function getTaskReviewerUsers() {
-  const users = await getVisibleUsers();
+export async function getTaskReviewerUsers(
+  reviewerUserIds?: string[],
+  visibleDepartments?: string[],
+) {
+  const users = await getVisibleUsers(reviewerUserIds, visibleDepartments);
 
   return users
-    .filter((user) => user.roles.includes("admin") || user.roles.includes("hr"))
+    .filter((user) => isManagerRole(user.roles) || isDepartmentAdminRole(user.roles))
     .map((user) => ({
       userId: user.userId,
       email: user.email,
@@ -631,7 +653,7 @@ export async function getTaskReviewerUsers() {
     .sort((left, right) => left.fullName.localeCompare(right.fullName));
 }
 
-export async function getManagedTasks() {
+export async function getManagedTasks(visibleDepartments?: string[]) {
   const supabase = await getSupabaseServerClient();
   const { data, error } = await supabase
     .from("tasks")
@@ -644,7 +666,18 @@ export async function getManagedTasks() {
   }
 
   const usersById = await getUsersByTaskRows(data);
-  return data.map((task) => mapTask(task, usersById));
+  const normalizedDepartments = normalizeDepartments(visibleDepartments);
+
+  return data
+    .map((task) => mapTask(task, usersById))
+    .filter((task) => {
+      if (!normalizedDepartments || normalizedDepartments.length === 0) {
+        return true;
+      }
+
+      const assigneeDepartment = usersById.get(task.assigneeId)?.department?.trim().toLowerCase() ?? "";
+      return normalizedDepartments.includes(assigneeDepartment);
+    });
 }
 
 export async function getAdminTasks() {
@@ -668,7 +701,7 @@ export async function getAssignedTasksForUser(userId: string) {
   return data.map((task) => mapTask(task, usersById));
 }
 
-export async function getTaskDetailById(taskId: string) {
+export async function getTaskDetailById(taskId: string, visibleDepartments?: string[]) {
   const taskRow = await getTaskRowById(taskId);
 
   if (!taskRow) {
@@ -677,6 +710,16 @@ export async function getTaskDetailById(taskId: string) {
 
   const usersById = await getUsersByTaskRows([taskRow]);
   const task = mapTask(taskRow, usersById);
+  const normalizedDepartments = normalizeDepartments(visibleDepartments);
+
+  if (normalizedDepartments && normalizedDepartments.length > 0) {
+    const assigneeDepartment = usersById.get(task.assigneeId)?.department?.trim().toLowerCase() ?? "";
+
+    if (!normalizedDepartments.includes(assigneeDepartment)) {
+      return null;
+    }
+  }
+
   const supabase = await getSupabaseServerClient();
   const { data: submissionRows, error: submissionError } = await supabase
     .from("task_submissions")
@@ -1033,7 +1076,11 @@ export async function createTaskSubmission(actorUserId: string, input: TaskSubmi
   }
 }
 
-export async function reviewTaskSubmission(actorUserId: string, input: TaskReviewInput) {
+export async function reviewTaskSubmission(
+  actorUserId: string,
+  input: TaskReviewInput,
+  visibleDepartments?: string[],
+) {
   const normalized = normalizeTaskReviewInput(input);
   const supabase = getSupabaseAdminClient();
   const { data: submissionRow, error: submissionError } = await supabase
@@ -1058,6 +1105,17 @@ export async function reviewTaskSubmission(actorUserId: string, input: TaskRevie
 
   if (!taskRow) {
     throw new Error("Task not found.");
+  }
+
+  const usersById = await getUsersByTaskRows([taskRow]);
+  const normalizedDepartments = normalizeDepartments(visibleDepartments);
+
+  if (normalizedDepartments && normalizedDepartments.length > 0) {
+    const assigneeDepartment = usersById.get(taskRow.user_id)?.department?.trim().toLowerCase() ?? "";
+
+    if (!normalizedDepartments.includes(assigneeDepartment)) {
+      throw new Error("You are not allowed to review this task.");
+    }
   }
 
   const { data: latestSubmission, error: latestError } = await supabase

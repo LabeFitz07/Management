@@ -6,9 +6,10 @@ import {
   getUnreadNotificationCount,
   type NotificationRecord,
 } from "@/lib/notification-store";
+import { canAccessDashboard, isManagerRole } from "@/lib/roles";
 import { formatTaskDateTime } from "@/lib/task-ui";
 import { logout } from "../auth-actions";
-import { markAllNotificationsAsRead } from "../notification-actions";
+import { markAllNotificationsAsRead, openNotificationTask } from "../notification-actions";
 
 const NOTIFICATION_TYPE_META: Record<
   NotificationRecord["type"],
@@ -33,7 +34,7 @@ const NOTIFICATION_TYPE_META: Record<
 };
 
 function getBackHref(roles: string[]) {
-  return roles.includes("admin") || roles.includes("hr") ? "/dashboard" : "/staff";
+  return canAccessDashboard(roles) ? "/dashboard" : "/staff";
 }
 
 function getNotificationHref(notification: NotificationRecord, roles: string[]) {
@@ -43,7 +44,7 @@ function getNotificationHref(notification: NotificationRecord, roles: string[]) 
     return baseHref;
   }
 
-  return roles.includes("admin") || roles.includes("hr")
+  return isManagerRole(roles)
     ? `/dashboard/tasks/${notification.taskId}`
     : `/staff/tasks/${notification.taskId}`;
 }
@@ -163,12 +164,20 @@ export default async function NotificationsPage() {
                       </p>
                     </div>
 
-                    <Link
-                      href={getNotificationHref(notification, accessProfile.roles)}
-                      className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-blue-300 hover:text-blue-700"
-                    >
-                      Open Task
-                    </Link>
+                    <form action={openNotificationTask}>
+                      <input type="hidden" name="notificationId" value={notification.id} />
+                      <input
+                        type="hidden"
+                        name="redirectTo"
+                        value={getNotificationHref(notification, accessProfile.roles)}
+                      />
+                      <button
+                        type="submit"
+                        className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-blue-300 hover:text-blue-700"
+                      >
+                        Open Task
+                      </button>
+                    </form>
                   </div>
                 </article>
               ))

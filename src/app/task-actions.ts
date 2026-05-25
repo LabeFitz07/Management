@@ -4,10 +4,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createNotification } from "@/lib/notification-store";
 import { getCurrentUserAccessProfile } from "@/lib/authz";
+import { getDepartments, getManagedDepartmentIdsForUser } from "@/lib/department-store";
+import { isDepartmentAdminRole, isManagerRole } from "@/lib/roles";
 import {
   createTaskAssignment,
   createTaskSubmission,
   deleteTaskById,
+  getAssignableStaffUsers,
+  getTaskDetailById,
   reviewTaskSubmission,
   updateTaskAssignmentById,
   updateTaskProgressById,
@@ -47,11 +51,22 @@ async function requireAccessProfile() {
 async function requireTaskManager() {
   const accessProfile = await requireAccessProfile();
 
-  if (!accessProfile.roles.includes("admin") && !accessProfile.roles.includes("hr")) {
+  if (!isManagerRole(accessProfile.roles) && !isDepartmentAdminRole(accessProfile.roles)) {
     redirect("/staff");
   }
 
   return accessProfile;
+}
+
+async function getDepartmentAdminScope(accessProfile: Awaited<ReturnType<typeof requireTaskManager>>) {
+  if (!isDepartmentAdminRole(accessProfile.roles)) {
+    return null;
+  }
+
+  const managedDepartmentIds = await getManagedDepartmentIdsForUser(accessProfile.userId);
+  const departments = await getDepartments(managedDepartmentIds);
+  const visibleDepartments = departments.map((department) => department.name);
+  return { visibleDepartments };
 }
 
 function revalidateTaskPaths(taskId: string) {
@@ -64,10 +79,21 @@ function revalidateTaskPaths(taskId: string) {
 
 export async function createTask(formData: FormData) {
   const accessProfile = await requireTaskManager();
+  const departmentAdminScope = await getDepartmentAdminScope(accessProfile);
   const referenceFiles = getTaskReferenceFiles(formData);
 
   if (referenceFiles === "invalid-files") {
-    redirect("/dashboard?add=1&upload=invalid");
+    redirect("/dashboard/workflow?add=1&upload=invalid");
+  }
+
+  if (departmentAdminScope) {
+    const assignableStaff = await getAssignableStaffUsers(departmentAdminScope.visibleDepartments);
+    const assigneeId = String(formData.get("assigneeId") ?? "").trim();
+    const reviewerId = String(formData.get("reviewerId") ?? "").trim() || accessProfile.userId;
+
+    if (!assignableStaff.some((staff) => staff.userId === assigneeId) || reviewerId !== accessProfile.userId) {
+      redirect("/dashboard/workflow?add=1&error=unauthorized");
+    }
   }
 
   const task = await createTaskAssignment(accessProfile.userId, getTaskInput(formData), referenceFiles);
@@ -84,7 +110,7 @@ export async function createTask(formData: FormData) {
   }
 
   revalidateTaskPaths(task.id);
-  redirect("/dashboard");
+  redirect("/dashboard/workflow");
 }
 
 export async function updateTask(formData: FormData) {
@@ -95,11 +121,23 @@ export async function updateTask(formData: FormData) {
   }
 
   const accessProfile = await requireTaskManager();
+  const departmentAdminScope = await getDepartmentAdminScope(accessProfile);
   const referenceFiles = getTaskReferenceFiles(formData);
   const referenceFileIdsToRemove = getReferenceFileIdsToRemove(formData);
 
   if (referenceFiles === "invalid-files") {
-    redirect(`/dashboard?edit=${taskId}&upload=invalid`);
+    redirect(`/dashboard/workflow?edit=${taskId}&upload=invalid`);
+  }
+
+  if (departmentAdminScope) {
+    const assignableStaff = await getAssignableStaffUsers(departmentAdminScope.visibleDepartments);
+    const detail = await getTaskDetailById(taskId, departmentAdminScope.visibleDepartments);
+    const assigneeId = String(formData.get("assigneeId") ?? "").trim();
+    const reviewerId = String(formData.get("reviewerId") ?? "").trim() || accessProfile.userId;
+
+    if (!detail || !assignableStaff.some((staff) => staff.userId === assigneeId) || reviewerId !== accessProfile.userId) {
+      redirect("/dashboard/workflow?error=unauthorized");
+    }
   }
 
   const task = await updateTaskAssignmentById(
@@ -122,7 +160,7 @@ export async function updateTask(formData: FormData) {
   }
 
   revalidateTaskPaths(task.id);
-  redirect("/dashboard");
+  redirect("/dashboard/workflow");
 }
 
 export async function updateTaskStatus(formData: FormData) {
@@ -134,7 +172,7 @@ export async function updateTaskStatus(formData: FormData) {
   }
 
   const accessProfile = await requireAccessProfile();
-  const isManager = accessProfile.roles.includes("admin") || accessProfile.roles.includes("hr");
+  const isManager = isManagerRole(accessProfile.roles);
 
   await updateTaskProgressById(taskId, status, accessProfile.userId, isManager);
   revalidateTaskPaths(taskId);
@@ -151,7 +189,7 @@ export async function submitTaskForReview(formData: FormData) {
 
   const accessProfile = await requireAccessProfile();
 
-  if (accessProfile.roles.includes("admin") || accessProfile.roles.includes("hr")) {
+  if (isManagerRole(accessProfile.roles)) {
     throw new Error("Managers cannot submit staff work for review.");
   }
 
@@ -179,6 +217,7 @@ export async function submitTaskForReview(formData: FormData) {
 
 export async function reviewTaskSubmissionAction(formData: FormData) {
   const accessProfile = await requireTaskManager();
+  const departmentAdminScope = await getDepartmentAdminScope(accessProfile);
   const submissionId = String(formData.get("submissionId") ?? "").trim();
   const decision = String(formData.get("decision") ?? "").trim();
   const reviewNote = String(formData.get("reviewNote") ?? "").trim();
@@ -186,7 +225,7 @@ export async function reviewTaskSubmissionAction(formData: FormData) {
     submissionId,
     decision: decision === "changes_requested" ? "changes_requested" : "approved",
     reviewNote,
-  });
+  }, departmentAdminScope?.visibleDepartments);
 
   await createNotification({
     recipientUserId: result.recipientUserId,
@@ -208,6 +247,54 @@ export async function reviewTaskSubmissionAction(formData: FormData) {
   redirect(`/dashboard/tasks/${result.taskId}?status=${result.decision}`);
 }
 
+export async function approveTaskSubmissionFromWorkflow(formData: FormData) {
+  const accessProfile = await requireTaskManager();
+  const departmentAdminScope = await getDepartmentAdminScope(accessProfile);
+  const submissionId = String(formData.get("submissionId") ?? "").trim();
+
+  const result = await reviewTaskSubmission(accessProfile.userId, {
+    submissionId,
+    decision: "approved",
+    reviewNote: "",
+  }, departmentAdminScope?.visibleDepartments);
+
+  await createNotification({
+    recipientUserId: result.recipientUserId,
+    actorUserId: accessProfile.userId,
+    taskId: result.taskId,
+    submissionId: result.submissionId,
+    type: "task_approved",
+    title: `Task approved: ${result.taskTitle}`,
+    body: "Your submitted work was approved.",
+  });
+
+  revalidateTaskPaths(result.taskId);
+  redirect("/dashboard/workflow?status=submitted");
+}
+
+export async function cancelTask(formData: FormData) {
+  const taskId = String(formData.get("id") ?? "").trim();
+
+  if (!taskId) {
+    throw new Error("Task ID is required.");
+  }
+
+  const accessProfile = await requireTaskManager();
+  const departmentAdminScope = await getDepartmentAdminScope(accessProfile);
+
+  if (departmentAdminScope) {
+    const detail = await getTaskDetailById(taskId, departmentAdminScope.visibleDepartments);
+
+    if (!detail) {
+      redirect("/dashboard/workflow?error=unauthorized");
+    }
+  }
+
+  await deleteTaskById(taskId);
+  revalidateTaskPaths(taskId);
+  redirect("/dashboard/workflow?status=todo");
+}
+
 export async function deleteTask(formData: FormData) {
   const taskId = String(formData.get("id") ?? "").trim();
 
@@ -215,7 +302,17 @@ export async function deleteTask(formData: FormData) {
     throw new Error("Task ID is required.");
   }
 
-  await requireTaskManager();
+  const accessProfile = await requireTaskManager();
+  const departmentAdminScope = await getDepartmentAdminScope(accessProfile);
+
+  if (departmentAdminScope) {
+    const detail = await getTaskDetailById(taskId, departmentAdminScope.visibleDepartments);
+
+    if (!detail) {
+      redirect("/dashboard/workflow?error=unauthorized");
+    }
+  }
+
   await deleteTaskById(taskId);
   revalidateTaskPaths(taskId);
 }

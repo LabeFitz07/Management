@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
 import type { AccountProfile } from "@/lib/account-store";
+import { getRoleDisplayLabel } from "@/lib/roles";
 
 type AccountFormProps = {
   action: (formData: FormData) => void | Promise<void>;
@@ -63,15 +64,7 @@ function getInitials(fullName: string) {
 }
 
 function getRoleLabel(roles: string[]) {
-  if (roles.includes("admin")) {
-    return "Admin";
-  }
-
-  if (roles.includes("hr")) {
-    return "HR";
-  }
-
-  return "Staff";
+  return getRoleDisplayLabel(roles);
 }
 
 function formatDate(value: string) {

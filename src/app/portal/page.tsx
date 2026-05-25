@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUserAccessProfile } from "@/lib/authz";
+import { canAccessDashboard } from "@/lib/roles";
 
 export default async function PortalPage() {
   const accessProfile = await getCurrentUserAccessProfile();
@@ -8,7 +9,7 @@ export default async function PortalPage() {
     redirect("/?error=unauthorized");
   }
 
-  if (accessProfile.roles.includes("admin") || accessProfile.roles.includes("hr")) {
+  if (canAccessDashboard(accessProfile.roles)) {
     redirect("/dashboard");
   }
 

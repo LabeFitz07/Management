@@ -13,7 +13,7 @@ type TaskFormProps = {
 };
 
 const inputClassName =
-  "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-500";
+  "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-cyan-400 dark:focus:ring-cyan-950 dark:disabled:bg-slate-900 dark:disabled:text-slate-500";
 
 function Field({
   children,
@@ -24,7 +24,7 @@ function Field({
 }) {
   return (
     <label className="block space-y-2">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
+      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</span>
       {children}
     </label>
   );
@@ -49,8 +49,8 @@ export function TaskForm({
     <form action={action} className="space-y-5">
       {taskToEdit ? <input type="hidden" name="id" value={taskToEdit.id} /> : null}
 
-      <section className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+      <section className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/70">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
           Assignment
         </p>
         <div className="mt-4 grid gap-4">
@@ -110,8 +110,8 @@ export function TaskForm({
         </div>
       </section>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+      <section className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/80">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
           Work State
         </p>
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
@@ -128,11 +128,11 @@ export function TaskForm({
             ) : (
               <>
                 <input type="hidden" name="status" value={taskToEdit?.status ?? "todo"} />
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-sm font-semibold text-slate-950">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+                  <p className="text-sm font-semibold text-slate-950 dark:text-white">
                     {TASK_STATUS_META[taskToEdit?.status ?? "todo"].label}
                   </p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                  <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
                     This task is already inside the review workflow. Change its state from the
                     staff workspace or the reviewer page instead of the assignment editor.
                   </p>
@@ -164,26 +164,26 @@ export function TaskForm({
         </div>
       </section>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+      <section className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/80">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
           Reference Files
         </p>
         <div className="mt-4 grid gap-4">
           {taskToEdit ? (
             <div className="space-y-3">
-              <p className="text-sm font-medium text-slate-700">Current Assignment Files</p>
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Current Assignment Files</p>
               {existingReferenceFiles.length > 0 ? (
                 <div className="space-y-2">
                   {existingReferenceFiles.map((file) => (
                     <div
                       key={file.id}
-                      className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                      className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-950 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-slate-900">
+                          <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
                           {file.originalName}
                         </p>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
                           {file.mimeType} | {formatTaskFileSize(file.sizeBytes)}
                         </p>
                         {file.downloadUrl ? (
@@ -197,7 +197,7 @@ export function TaskForm({
                           </a>
                         ) : null}
                       </div>
-                      <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                      <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
                         <input
                           type="checkbox"
                           name="removeReferenceFileIds"
@@ -210,7 +210,7 @@ export function TaskForm({
                   ))}
                 </div>
               ) : (
-                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-400">
                   No assignment files have been uploaded yet for this task.
                 </div>
               )}
@@ -223,10 +223,10 @@ export function TaskForm({
               name="taskReferenceFiles"
               multiple
               accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.wps,.zip,.txt,.csv,.mp4,.mov,.webm"
-              className="block w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-slate-950 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white"
+              className="block w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-slate-950 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300"
             />
           </Field>
-          <p className="text-xs leading-5 text-slate-500">
+          <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">
             Upload papers, forms, photos, or work references that the staff member needs to open while doing this task.
             You can add up to 5 files, each under 25 MB.
             {taskToEdit
@@ -236,7 +236,7 @@ export function TaskForm({
         </div>
       </section>
 
-      <div className="sticky bottom-0 -mx-6 -mb-6 border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur">
+      <div className="sticky bottom-0 -mx-6 -mb-6 border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
         <button
           type="submit"
           disabled={!canSubmit}
@@ -258,7 +258,7 @@ export function TaskForm({
         ) : null}
 
         {isTaskStorageReady ? (
-          <p className="mt-3 text-center text-xs leading-5 text-slate-500">
+          <p className="mt-3 text-center text-xs leading-5 text-slate-500 dark:text-slate-400">
             {taskToEdit
               ? canEditWorkflowStatus
                 ? `Current status: ${TASK_STATUS_META[taskToEdit.status].label}.`

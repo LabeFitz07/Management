@@ -1,3 +1,4 @@
+import { getSupabaseAdminClient } from "./supabase-admin";
 import { getSupabaseServerClient } from "./supabase-server";
 
 export type AccountProfile = {
@@ -40,6 +41,14 @@ export type StaffAccountSummary = {
   status: string;
   startDate: string;
   createdAt: string;
+};
+
+export type StaffAccountRecord = StaffAccountSummary & {
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  roles: string[];
+  isActive: boolean;
 };
 
 type RoleAssignmentRow = {
@@ -189,6 +198,29 @@ function mapStaffSummary(row: AccountProfileRow, staffMember: StaffMemberRow | n
   };
 }
 
+function mapStaffRecord(row: AccountProfileRow, staffMember: StaffMemberRow | null): StaffAccountRecord {
+  const fallbackName = splitFullName(row.full_name);
+
+  return {
+    userId: row.user_id,
+    email: row.email,
+    fullName: row.full_name,
+    firstName: row.first_name ?? fallbackName.firstName,
+    middleName: row.middle_name ?? fallbackName.middleName,
+    lastName: row.last_name ?? fallbackName.lastName,
+    phone: row.phone ?? staffMember?.phone ?? "",
+    profileImageUrl: row.profile_image_url ?? staffMember?.profile_image_url ?? "",
+    employeeId: staffMember?.employee_id ?? "",
+    department: row.department ?? staffMember?.departments?.name ?? "",
+    jobTitle: row.job_title ?? staffMember?.job_roles?.title ?? "",
+    status: staffMember?.status ?? (row.is_active ? "Active" : "Inactive"),
+    startDate: row.start_date ?? staffMember?.start_date ?? "",
+    createdAt: row.created_at,
+    roles: getRoles(row),
+    isActive: row.is_active,
+  };
+}
+
 async function getProfileByUserId(userId: string) {
   const supabase = await getSupabaseServerClient();
   const { data, error } = await supabase
@@ -269,7 +301,7 @@ export async function getCurrentAccountProfile() {
 }
 
 async function getAllAccountProfiles() {
-  const supabase = await getSupabaseServerClient();
+  const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
     .from("app_user_profiles")
     .select(EXPANDED_PROFILE_SELECT)
@@ -298,7 +330,7 @@ async function getAllAccountProfiles() {
 }
 
 async function getAllStaffMembers() {
-  const supabase = await getSupabaseServerClient();
+  const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
     .from("staff_members")
     .select(STAFF_SELECT)
@@ -324,11 +356,80 @@ async function getAllStaffMembers() {
   return fallbackData;
 }
 
-export async function getStaffAccountSummaries() {
+export async function getStaffAccountSummaries(visibleDepartments?: string[]) {
   const [profiles, staffMembers] = await Promise.all([getAllAccountProfiles(), getAllStaffMembers()]);
   const staffByEmail = new Map(staffMembers.map((staff) => [staff.email.toLowerCase(), staff]));
+  const normalizedDepartments = visibleDepartments?.map((department) => department.trim().toLowerCase()).filter(Boolean);
 
   return profiles
     .filter((profile) => profile.is_active && getRoles(profile).includes("staff"))
+    .filter((profile) => {
+      if (!normalizedDepartments || normalizedDepartments.length === 0) {
+        return true;
+      }
+
+      const departmentName = (profile.department ?? staffByEmail.get(profile.email.toLowerCase())?.departments?.name ?? "")
+        .trim()
+        .toLowerCase();
+      return normalizedDepartments.includes(departmentName);
+    })
     .map((profile) => mapStaffSummary(profile, staffByEmail.get(profile.email.toLowerCase()) ?? null));
+}
+
+export async function getStaffAccountByUserId(userId: string, visibleDepartments?: string[]) {
+  const supabase = getSupabaseAdminClient();
+  const { data: expandedProfile, error } = await supabase
+    .from("app_user_profiles")
+    .select(EXPANDED_PROFILE_SELECT)
+    .eq("user_id", userId)
+    .maybeSingle<AccountProfileRow>();
+
+  if (error && !isMissingExpandedProfileColumn(error.message)) {
+    throw new Error(`Failed to fetch account profile: ${error.message}`);
+  }
+
+  const profile = expandedProfile ?? (
+    await supabase
+      .from("app_user_profiles")
+      .select(BASE_PROFILE_SELECT)
+      .eq("user_id", userId)
+      .maybeSingle<AccountProfileRow>()
+  ).data;
+
+  if (!profile) {
+    return null;
+  }
+
+  const { data: staffMemberData, error: staffError } = await supabase
+    .from("staff_members")
+    .select(STAFF_SELECT)
+    .eq("email", profile.email)
+    .maybeSingle<StaffMemberRow>();
+
+  if (staffError && !isMissingProfileImageColumn(staffError.message)) {
+    throw new Error(`Failed to fetch staff account: ${staffError.message}`);
+  }
+
+  const staffMember = staffError
+    ? (
+        await supabase
+          .from("staff_members")
+          .select(BASE_STAFF_SELECT)
+          .eq("email", profile.email)
+          .maybeSingle<StaffMemberRow>()
+      ).data ?? null
+    : staffMemberData;
+
+  const record = mapStaffRecord(profile, staffMember);
+
+  if (visibleDepartments && visibleDepartments.length > 0) {
+    const normalizedDepartments = visibleDepartments.map((department) => department.trim().toLowerCase()).filter(Boolean);
+    const departmentName = record.department.trim().toLowerCase();
+
+    if (!normalizedDepartments.includes(departmentName)) {
+      return null;
+    }
+  }
+
+  return record;
 }

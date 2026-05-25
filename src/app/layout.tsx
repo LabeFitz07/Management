@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Script from "next/script";
+import { DASHBOARD_THEME_STORAGE_KEY } from "@/components/dashboard/DashboardThemeProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -12,8 +14,23 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
+      <body className="min-h-full flex flex-col">
+        <Script id="dashboard-theme-init" strategy="beforeInteractive">
+          {`(() => {
+            try {
+              const storedTheme = window.localStorage.getItem("${DASHBOARD_THEME_STORAGE_KEY}");
+              const theme = storedTheme === "dark" || storedTheme === "light"
+                ? storedTheme
+                : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+              const root = document.documentElement;
+              root.dataset.theme = theme;
+              root.classList.toggle("dark", theme === "dark");
+            } catch {}
+          })();`}
+        </Script>
+        {children}
+      </body>
     </html>
   );
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUserAccessProfile } from "@/lib/authz";
 import { getUnreadNotificationCount } from "@/lib/notification-store";
+import { canAccessDashboard } from "@/lib/roles";
 import {
   getAssignedTasksForUser,
   TASK_STATUSES,
@@ -188,7 +189,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
     redirect("/");
   }
 
-  if (accessProfile.roles.includes("admin") || accessProfile.roles.includes("hr")) {
+  if (canAccessDashboard(accessProfile.roles)) {
     redirect("/dashboard");
   }
 
